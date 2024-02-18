@@ -33,3 +33,7 @@ TODO: we should proxy proxy chains
 # Ressource:
 https://raw.githubusercontent.com/darklotuskdb/SSTI-XSS-Finder/main/Payloads.txt
 https://github.com/nu11secur1ty/nu11secur1ty/blob/master/kaylogger/nu11secur1ty.py
+https://github.com/Ishanoshada/GDorks/blob/main/dorks.txt
+
+# TODO
+add a vulnerable wordpress plugin and then dork to find vulnerable wordpress sites

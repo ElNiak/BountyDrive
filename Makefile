@@ -10,6 +10,7 @@ all: setup
 
 # Setup the virtual environment and install requirements
 setup: $(VENV)/bin/activate
+	$(PYTHON) -m pip install wheel
 	$(PYTHON) -m pip install -r requirements.txt
 
 # Create virtual environment

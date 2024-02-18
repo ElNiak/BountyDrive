@@ -1,6 +1,6 @@
 terminal_banner
 termcolor
-google
+googlesearch-python
 tqdm
 
 

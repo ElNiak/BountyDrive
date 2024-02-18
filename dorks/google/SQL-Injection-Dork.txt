@@ -5461,3 +5461,137 @@ allintitle: restricted filetype:doc site:gov
 allintitle:*.php?filename=*
 allintitle:*.php?page=*
 allintitle:*.php?logon=*
+inurl:index.php?id=
+inurl:article.php?id=
+inurl:gallery.php?id=
+inurl:news.php?id=
+inurl:product.php?id=
+inurl:category.php?id=
+inurl:content.php?id=
+inurl:download.php?id=
+inurl:profile.php?id=
+inurl:shop.php?id=
+inurl:show.php?id=
+inurl:item.php?id=
+inurl:review.php?id=
+inurl:read.php?id=
+inurl:faq.php?id=
+inurl:search.php?id=
+inurl:archive.php?id=
+inurl:event.php?id=
+inurl:calendar.php?id=
+inurl:login.php?id=
+inurl:register.php?id=
+inurl:checkout.php?id=
+inurl:confirm.php?id=
+inurl:process.php?id=
+filetype:php intext:"SQL syntax"
+filetype:asp inurl:"id=" intext:"OleDbException"
+filetype:log intext:"You have an error in your SQL syntax"
+inurl:".php?param="
+inurl:".php?id="
+inurl:"page.php?id="
+inurl:"product-detail.php?id="
+inurl:"viewitem.php?id="
+inurl:"news_detail.php?id="
+inurl:"post.php?id="
+inurl:"event.php?id="
+inurl:"category.php?id="
+inurl:"download.php?id="
+inurl:"content.php?id="
+inurl:"index.php?id="
+inurl:"gallery.php?id="
+inurl:"news.php?id="
+inurl:"product.php?id="
+inurl:"category.php?id="
+inurl:"content.php?id="
+inurl:"download.php?id="
+inurl:"profile.php?id="
+inurl:"shop.php?id="
+inurl:"show.php?id="
+inurl:"item.php?id="
+inurl:"review.php?id="
+inurl:"read.php?id="
+inurl:"faq.php?id="
+inurl:"search.php?id="
+inurl:"archive.php?id="
+inurl:"event.php?id="
+inurl:"calendar.php?id="
+inurl:"login.php?id="
+inurl:"register.php?id="
+inurl:"checkout.php?id="
+inurl:"confirm.php?id="
+inurl:"process.php?id="
+inurl:*.php?*
+inurl:*.asp?*
+inurl:*.aspx?*
+inurl:*.jsp?*
+filetype:asp "OleDbException"
+filetype:log "SQL syntax"
+filetype:txt "SQL syntax error"
+filetype:txt "union select"
+filetype:log "union select"
+filetype:txt "mysqli_num_rows()"
+filetype:log "mysql_fetch_array()"
+filetype:txt "ORDER BY"
+filetype:log "ORDER BY"
+inurl:".php?category_id="
+inurl:".php?product_id="
+inurl:".php?article_id="
+inurl:".php?post_id="
+inurl:".php?event_id="
+inurl:".php?calendar_id="
+inurl:".php?news_id="
+inurl:".php?item_id="
+inurl:".php?id="
+intext:"You have an error in your SQL syntax near"
+intext:"SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near"
+intext:"query failed: ERROR: parser: parse error"
+inurl:"login.php?username="
+inurl:"login.aspx?user="
+inurl:"signin.php?user="
+inurl:"auth.php?user="
+inurl:"signin.asp?user="
+inurl:"login.jsp?user="
+inurl:"search.php?query="
+inurl:"search.aspx?keyword="
+inurl:"search.asp?q="
+inurl:"search.jsp?query="
+inurl:"profile.php?user_id="
+inurl:"profile.aspx?userid="
+inurl:"user.php?id="
+inurl:"user.aspx?user_id="
+inurl:"product.php?pid="
+inurl:"product.aspx?id="
+inurl:"item.php?item_id="
+inurl:"item.aspx?prodid="
+inurl:"forum.php?topic="
+inurl:"forum.aspx?topic_id="
+inurl:"thread.php?tid="
+inurl:"thread.aspx?threadid="
+inurl:"news.php?nid="
+inurl:"news.aspx?newsid="
+inurl:"article.php?article_id="
+inurl:"article.aspx?id="
+inurl:"category.php?cat_id="
+inurl:"category.aspx?id="
+inurl:"blog.php?post_id="
+inurl:"blog.aspx?id="
+inurl:"register.php?user="
+inurl:"register.aspx?username="
+inurl:"signup.php?username="
+inurl:"forgot_password.php?email="
+inurl:"forgotpassword.aspx?email="
+inurl:"contact.php?name="
+inurl:"contact.aspx?fullname="
+inurl:"feedback.php?message="
+inurl:"feedback.aspx?msg="
+inurl:"survey.php?survey_id="
+inurl:"survey.aspx?id="
+inurl:"poll.php?id="
+inurl:"poll.aspx?pollid="
+inurl:"comments.php?post_id="
+inurl:"comments.aspx?postid="
+inurl:"cms.php?page_id="
+inurl:"cms.aspx?id="
+inurl:"checkout.php?order_id="
