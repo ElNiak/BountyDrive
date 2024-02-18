@@ -1,1 +1,3 @@
 venv/
+vulnerable_xss_sites.txt
+vulnerable_sqli_sites.txt
