@@ -19,4 +19,17 @@ python3 SQLI-Finder.py
 ## Tips
 Use Google hacking database(https://www.exploit-db.com/google-hacking-database) for good sqli dorks.
 
+## Proxies
+
+
+Free proxies from free-proxy-list.net
+Updated at 2024-02-18 15:32:02 UTC.
+
+TODO: we should proxy proxy chains
+
 # HAPPY HUNTING
+
+
+# Ressource:
+https://raw.githubusercontent.com/darklotuskdb/SSTI-XSS-Finder/main/Payloads.txt
+https://github.com/nu11secur1ty/nu11secur1ty/blob/master/kaylogger/nu11secur1ty.py
