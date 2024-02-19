@@ -1,7 +1,6 @@
 terminal_banner
 termcolor
-googlesearch-python
 tqdm
-
-
-
+selenium
+webdriver_manager
+sqlmap
