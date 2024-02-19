@@ -1,3 +1,4 @@
 venv/
-vulnerable_xss_sites.txt
-vulnerable_sqli_sites.txt
+vulnerable*.txt
+potencial*.txt
+*.log
