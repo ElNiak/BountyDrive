@@ -99,7 +99,7 @@ def get_user_input():
     page_no      = input(colored(f"From which Google page you want to start(eg- 1,2,3) [default: {DEFAULT_PAGE_NO}] ----> ", 'cyan')) or DEFAULT_PAGE_NO
     
     do_dorking_google   = input(colored(f"Do you want to do the Google dorking scan phase ? [default: true (vs false)] ----> ", 'cyan')) or "true"
-    do_dorking_github   = input(colored(f"Do you want to do the Github dorking scan phase ? [default: true (vs false)] ----> ", 'cyan')) or "true"
+    do_dorking_github   = input(colored(f"Do you want to do the Github dorking scan phase ? [default: false (vs true)] ----> ", 'cyan')) or "false"
     
     do_xss           = input(colored(f"Do you want to test for XSS vulnerability ? [default: true (vs false)] ----> ", 'cyan')) or "true"
     do_xss              = True if do_xss.lower() == "true" else False 
@@ -111,7 +111,7 @@ def get_user_input():
         FUZZ_XSS         = True if do_fuzzing_xss.lower() == "true" else False
         BLIND_XSS        = True if do_blind_xss.lower() == "true" else False
     
-    do_sqli         = input(colored(f"Do you want to test for SQLi vulnerability ? [default: true (vs false)] ----> ", 'cyan')) or "true"
+    do_sqli         = input(colored(f"Do you want to test for SQLi vulnerability ? [default: false (vs true)] ----> ", 'cyan')) or "false"
     
     # Ensure numeric inputs are correctly converted to integers
     TOTAL_OUTPUT = int(total_output)
@@ -154,6 +154,9 @@ if __name__ == "__main__":
         
         def read_potential_sites():
             for key, value in POTENTIAL_PATHS.items():
+                if not os.path.exists(value[0]):
+                    with open(value[0], 'w') as file:
+                        file.write('')
                 with open(value[0], 'r') as file:
                     POTENTIAL_PATHS[key][1] = list(set(file.read().splitlines()))
 

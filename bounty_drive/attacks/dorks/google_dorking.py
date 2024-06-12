@@ -12,7 +12,7 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from attacks.dorks.dorking_config import SUBDOMAIN
-from utils.app_config import DEFAULT_TOTAL_OUTPUT, LANG, USER_AGENTS
+from utils.app_config import DEFAULT_TOTAL_OUTPUT, LANG, TOTAL_OUTPUT, USER_AGENTS
 from utils.proxies import round_robin_proxies
 from utils.request_manager import param_converter, start_request
 from utils.results_manager import safe_add_result
@@ -40,12 +40,12 @@ def google_search_with_proxy(
 
     # Threat data as path
     is_json = False
-    url = param_converter(data, url)
+    # url = param_converter(data, url) # TODO
     data = []
     GET, POST = True, False
     params = {
         "q": full_query,
-        "num": DEFAULT_TOTAL_OUTPUT + 2,  # Prevents multiple requests
+        "num": TOTAL_OUTPUT + 2,  # Prevents multiple requests
         "hl": LANG,
     }
 
@@ -58,8 +58,7 @@ def google_search_with_proxy(
             proxies=proxies,
             advanced=advanced,
             GET=GET,
-            url=url,
-            data=data,
+            data=full_query,
             headers=headers,
             params=params,
             base_url=base_url,
@@ -107,21 +106,20 @@ def load_google_dorks_and_search(extensions=None, proxies=None):
 
         # Separate tasks by category before shuffling
         search_tasks[category] = dorks
-
+    search_tasks_fill = []
     # Now shuffle the dorks within each category
     for cat in search_tasks:
         random.shuffle(search_tasks[cat])
-        search_tasks_fill += search_tasks[cat]
+        search_tasks_fill.append((search_tasks[cat],cat))
 
     cprint(f"Total number of dorks: {len(search_tasks)}", "yellow", file=sys.stderr)
 
     # Now, append a proxy to each task
     search_tasks_with_proxy = []
-    for task in search_tasks_fill:
-        dork, extension, category = task
+    for task, cat in search_tasks_fill:
         proxy = next(proxy_cycle)
         search_tasks_with_proxy.append(
-            {"dork": dork, "proxy": proxy, "category": category}
+            {"dork": task, "proxy": proxy, "category": cat}
         )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:

@@ -95,7 +95,7 @@ def start_request(
                 file=sys.stderr,
             )
             response = requests.post(
-                url,
+                base_url,
                 json=data,
                 headers=headers,
                 timeout=10,
@@ -109,7 +109,7 @@ def start_request(
                 file=sys.stderr,
             )
             response = requests.post(
-                url,
+                base_url,
                 data=data,
                 headers=headers,
                 timeout=10,

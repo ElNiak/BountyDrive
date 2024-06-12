@@ -41,26 +41,27 @@ def test_vulnerability_xss(proxies):
     driver = webdriver.Chrome(service=s)
     
     XSS_TEST_PAYLOAD = load_xss_payload()
-    for website in tqdm(POTENTIAL_PATHS["xss"][1], desc=f"Testing for XSS for {website}", unit="site"):
-        url, _   = website
-        for payload in XSS_TEST_PAYLOAD:
-            WAF = waf_detector(
-                url, {list(params.keys())[0]: xsschecker}, headers, GET, delay, timeout)
-            if WAF:
-                cprint(f'WAF detected <!>')
-            else:
-                cprint('WAF Status: Offline')
+    if len(POTENTIAL_PATHS["xss"][1]) > 0:
+        for website in tqdm(POTENTIAL_PATHS["xss"][1], desc=f"Testing for XSS for {website}", unit="site"):
+            url, _   = website
+            for payload in XSS_TEST_PAYLOAD:
+                WAF = waf_detector(
+                    url, {list(params.keys())[0]: xsschecker}, headers, GET, delay, timeout)
+                if WAF:
+                    cprint(f'WAF detected <!>')
+                else:
+                    cprint('WAF Status: Offline')
+                
+                payload_url = inject_payload(url, payload)
+                
+                if payload in requests.get(payload_url).text:
+                    cprint(f"[VULNERABLE] {payload_url}", "red", file=sys.stderr)
+                    VULN_PATHS["xss"][1].append(payload_url)
+                else:
+                    cprint(f"[NOT VULNERABLE] {payload_url}", "green", file=sys.stderr)
             
-            payload_url = inject_payload(url, payload)
-            
-            if payload in requests.get(payload_url).text:
-                cprint(f"[VULNERABLE] {payload_url}", "red", file=sys.stderr)
-                VULN_PATHS["xss"][1].append(payload_url)
-            else:
-                cprint(f"[NOT VULNERABLE] {payload_url}", "green", file=sys.stderr)
-        
-        if VULN_PATHS["xss"][1]:
-            driver.execute_script("window.open('');")
-            driver.switch_to.window(driver.window_handles[-1])
-            for vulnerable_url in VULN_PATHS["xss"][1]:
-                driver.get(vulnerable_url)
+            if VULN_PATHS["xss"][1]:
+                driver.execute_script("window.open('');")
+                driver.switch_to.window(driver.window_handles[-1])
+                for vulnerable_url in VULN_PATHS["xss"][1]:
+                    driver.get(vulnerable_url)

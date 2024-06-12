@@ -13,14 +13,14 @@ DLPHP_FILE_PATH   = "reports/potential_dlphp_sites.txt"
 BACKUP_FILE_PATH  = "reports/potential_backup_sites.txt"
 
 POTENTIAL_PATHS = {
-    "github": (GITHUB_FILE_PATH,[]), 
-    "sqli": (SQLI_FILE_PATH,[]),
-    "xss": (XSS_FILE_PATH,[]),
-    "api": (API_FILE_PATH,[]),
-    "web": (WEB_FILE_PATH,[]),
-    "secret": (SECRET_FILE_PATH,[]),
-    "dlphp": (DLPHP_FILE_PATH,[]),
-    "backup": (BACKUP_FILE_PATH,[])
+    "github": [GITHUB_FILE_PATH,[]], 
+    "sqli": [SQLI_FILE_PATH,[]],
+    "xss": [XSS_FILE_PATH,[]],
+    "api": [API_FILE_PATH,[]],
+    "web": [WEB_FILE_PATH,[]],
+    "secret": [SECRET_FILE_PATH,[]],
+    "dlphp": [DLPHP_FILE_PATH,[]],
+    "backup": [BACKUP_FILE_PATH,[]]
 }
 
 VULN_SQLI_FILE_PATH    = "reports/vulnerable_sqli_sites.txt"
@@ -32,19 +32,19 @@ VULN_DLPHP_FILE_PATH   = "reports/vulnerable_dlphp_sites.txt"
 VULN_BACKUP_FILE_PATH  = "reports/vulnerable_backup_sites.txt"
 
 VULN_PATHS = {
-    "sqli": (VULN_SQLI_FILE_PATH,[]),
-    "xss": (VULN_XSS_FILE_PATH,[]),
-    "api": (VULN_API_FILE_PATH,[]),
-    "web": (VULN_WEB_FILE_PATH,[]),
-    "secret": (VULN_SECRET_FILE_PATH,[]),
-    "dlphp": (VULN_DLPHP_FILE_PATH,[]),
-    "backup": (VULN_BACKUP_FILE_PATH,[])
+    "sqli": [VULN_SQLI_FILE_PATH,[]],
+    "xss": [VULN_XSS_FILE_PATH,[]],
+    "api": [VULN_API_FILE_PATH,[]],
+    "web": [VULN_WEB_FILE_PATH,[]],
+    "secret": [VULN_SECRET_FILE_PATH,[]],
+    "dlphp": [VULN_DLPHP_FILE_PATH,[]],
+    "backup": [VULN_BACKUP_FILE_PATH,[]]
 }
 
 # Constants for handling requests and delays
 DEFAULT_EXTENSION    = ""
 EXTENSION            = ""
-DEFAULT_TOTAL_OUTPUT = 10
+DEFAULT_TOTAL_OUTPUT = 10 # TODO enforce
 TOTAL_OUTPUT         = 10
 DEFAULT_PAGE_NO      = 1
 PAGE_NO              = 1

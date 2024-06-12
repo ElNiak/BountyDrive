@@ -2,9 +2,9 @@
 from datetime import datetime
 import sys
 
-today_date = datetime.now().strftime("%Y-%m-%d")
+today_date = datetime.now()
 orig_stdout = sys.stderr
-f = open(f'logs/{today_date}.log', 'w')
+f = open(f'logs/\"{today_date}\".log', 'w')
 class Unbuffered:
     def __init__(self, stream):
        self.stream = stream
