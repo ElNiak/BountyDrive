@@ -1,5 +1,5 @@
-<h1 align="center">Dorking-Pentesting</h1>
-<p align="center">A simple tool to find sql/xss injection vulnerability using google dorks.</p><br>
+<h1 align="center">BountyDrive</h1>
+<p align="center">Bug Orientation tool Utilizing Novel Tactics Yields Dorking Research Implementing Vulnerability Exploitation </p><br>
 <div align="center">
 <img src="https://forthebadge.com/images/badges/made-with-python.svg" >
 </div>
@@ -11,7 +11,7 @@ make
 ```
 ## Usage
 ```bash
-python3 Dorking-Pentesting.py
+python3 bounty_drive.py
 ```
 
 ## Tips
@@ -46,6 +46,8 @@ https://book.hacktricks.xyz/generic-methodologies-and-resources/external-recon-m
 https://github.com/gwen001/github-search
 https://obheda12.medium.com/gitdorker-a-new-tool-for-manual-github-dorking-and-easy-bug-bounty-wins-92a0a0a6b8d5
 https://github.com/spekulatius/infosec-dorks
+
+https://github.com/RevoltSecurities/Subdominator
 
 # TODO
 add a vulnerable wordpress plugin and then dork to find vulnerable wordpress sites
