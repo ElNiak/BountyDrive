@@ -8,37 +8,37 @@ import terminal_banner
 # Animation
 #########################################################################################
 
-banner = ("""
-                    
-    ▄▄▄▄·       ▄• ▄▌ ▐ ▄ ▄▄▄▄▄ ▄· ▄▌·▄▄▄▄  ▄▄▄  ▪   ▌ ▐·▄▄▄ .
-    ▐█ ▀█▪▪     █▪██▌•█▌▐█•██  ▐█▪██▌██▪ ██ ▀▄ █·██ ▪█·█▌▀▄.▀·
-    ▐█▀▀█▄ ▄█▀▄ █▌▐█▌▐█▐▐▌ ▐█.▪▐█▌▐█▪▐█· ▐█▌▐▀▀▄ ▐█·▐█▐█•▐▀▀▪▄
-    ██▄▪▐█▐█▌.▐▌▐█▄█▌██▐█▌ ▐█▌· ▐█▀·.██. ██ ▐█•█▌▐█▌ ███ ▐█▄▄▌
-    ·▀▀▀▀  ▀█▄▀▪ ▀▀▀ ▀▀ █▪ ▀▀▀   ▀ • ▀▀▀▀▀• .▀  ▀▀▀▀. ▀   ▀▀▀ 
-            
-                        Made with ❤️ 
-            For the Community, By the Community   
-
-            ###################################
-                      Made by ElNiak
- linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
-             Github - https://github.com/elniak
-                                                                                      
-""")
-banner_terminal = terminal_banner.Banner(banner)
-cprint(banner_terminal , 'green', file=sys.stderr)
-
 banner_res = ("""
-   ___               ____
-  / _ \___ ___ __ __/ / /____
- / , _/ -_|_-</ // / / __(_-<
+        ___               ____
+/ _ \___ ___ __ __/ / /____
+/ , _/ -_|_-</ // / / __(_-<
 /_/|_|\__/___/\_,_/_/\__/___/
 *****************************
-                                                                                      
-""")
+                                                                                
+        """)
 banner_terminal_res = terminal_banner.Banner(banner_res)
-
+        
 def load_animation():
+        banner = ("""
+                        
+▄▄▄▄·       ▄• ▄▌ ▐ ▄ ▄▄▄▄▄ ▄· ▄▌·▄▄▄▄  ▄▄▄  ▪   ▌ ▐·▄▄▄ .
+▐█ ▀█▪▪     █▪██▌•█▌▐█•██  ▐█▪██▌██▪ ██ ▀▄ █·██ ▪█·█▌▀▄.▀·
+▐█▀▀█▄ ▄█▀▄ █▌▐█▌▐█▐▐▌ ▐█.▪▐█▌▐█▪▐█· ▐█▌▐▀▀▄ ▐█·▐█▐█•▐▀▀▪▄
+██▄▪▐█▐█▌.▐▌▐█▄█▌██▐█▌ ▐█▌· ▐█▀·.██. ██ ▐█•█▌▐█▌ ███ ▐█▄▄▌
+·▀▀▀▀  ▀█▄▀▪ ▀▀▀ ▀▀ █▪ ▀▀▀   ▀ • ▀▀▀▀▀• .▀  ▀▀▀▀. ▀   ▀▀▀ 
+        
+                        Made with ❤️ 
+        For the Community, By the Community   
+
+        ###################################
+                Made by ElNiak
+linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
+        Github - https://github.com/elniak
+                                                                                
+        """)
+        banner_terminal = terminal_banner.Banner(banner)
+        cprint(banner_terminal , 'green', file=sys.stderr)
+
         load_str = "Preparing the Dorking Pentesting...."
         ls_len = len(load_str)
 

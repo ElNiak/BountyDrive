@@ -9,7 +9,7 @@ import sys
 
 from termcolor import cprint
 
-from bounty_drive.utils.request_manager import start_request
+from utils.request_manager import start_request
 
 
 def waf_detector(proxies, url, params, headers, GET, delay, timeout):

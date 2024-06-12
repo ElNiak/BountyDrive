@@ -1,5 +1,5 @@
 # Setup logging
-import datetime
+from datetime import datetime
 import sys
 
 today_date = datetime.now().strftime("%Y-%m-%d")

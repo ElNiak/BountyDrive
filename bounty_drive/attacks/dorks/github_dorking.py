@@ -4,7 +4,7 @@
 #########################################################################################
 
 # Token Round Robin for Sequential Requests
-import datetime
+from datetime import datetime
 import random
 import time
 

@@ -5,12 +5,12 @@
 
 import subprocess
 import requests
-from termcolor import ccprint, cprint
+from termcolor import cprint, cprint
 from tqdm import tqdm
 from urllib3 import Retry
 from requests.adapters import HTTPAdapter
-from bounty_drive.utils.app_config import POTENTIAL_PATHS
-from bounty_drive.utils.proxies import round_robin_proxies
+from utils.app_config import POTENTIAL_PATHS, VULN_PATHS
+from utils.proxies import round_robin_proxies
 
 
 def run_sqlmap(url, proxy):
@@ -87,7 +87,7 @@ def test_vulnerability_sqli(proxies):
     """
     Test a list of websites for SQL injection vulnerability using multithreading and proxies.
     """
-    results = []
+    VULN_PATHS["sqli"][1] = []
     
     # The code snippet provided is written in Python and performs the following tasks:
     
@@ -97,11 +97,10 @@ def test_vulnerability_sqli(proxies):
         proxy = next(proxy_cycle)
         url, result = test_sqli_with_proxy(website, proxy)
         if result is True:
-            ccprint(f"{url} ===> Vulnerable!", 'green', file=sys.stderr)
-            results.append(url)
+            cprint(f"{url} ===> Vulnerable!", 'green', file=sys.stderr)
+            VULN_PATHS["sqli"][1].append(url)
         elif result is False:
-            ccprint(f"{url} ===> Not Vulnerable", 'red', file=sys.stderr)
+            cprint(f"{url} ===> Not Vulnerable", 'red', file=sys.stderr)
         else:
-            ccprint(f"{url} ===> Can not be Determined", 'blue', file=sys.stderr)
+            cprint(f"{url} ===> Can not be Determined", 'blue', file=sys.stderr)
     
-    return results

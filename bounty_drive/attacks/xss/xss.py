@@ -8,9 +8,9 @@ import requests
 from termcolor import cprint
 from tqdm import tqdm
 
-from bounty_drive.utils.app_config import POTENTIAL_PATHS
-from bounty_drive.utils.request_manager import inject_payload
-from bounty_drive.utils.waf_mitigation import waf_detector
+from utils.app_config import POTENTIAL_PATHS, VULN_PATHS
+from utils.request_manager import inject_payload
+from utils.waf_mitigation import waf_detector
 
 try:
     from selenium import webdriver
@@ -35,7 +35,7 @@ def test_vulnerability_xss(proxies):
     """
     Test a list of websites for XSS vulnerability using multithreading and proxies.
     """
-    results = []
+    VULN_PATHS["xss"][1] = []
 
     s = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=s)
@@ -55,12 +55,12 @@ def test_vulnerability_xss(proxies):
             
             if payload in requests.get(payload_url).text:
                 cprint(f"[VULNERABLE] {payload_url}", "red", file=sys.stderr)
-                results.append(payload_url)
+                VULN_PATHS["xss"][1].append(payload_url)
             else:
                 cprint(f"[NOT VULNERABLE] {payload_url}", "green", file=sys.stderr)
-        if results:
+        
+        if VULN_PATHS["xss"][1]:
             driver.execute_script("window.open('');")
             driver.switch_to.window(driver.window_handles[-1])
-            for vulnerable_url in results:
+            for vulnerable_url in VULN_PATHS["xss"][1]:
                 driver.get(vulnerable_url)
-    return results

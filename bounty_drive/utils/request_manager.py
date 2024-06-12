@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import requests
 from termcolor import cprint
 
-from bounty_drive.utils.app_config import WAF_DELAY
+from utils.app_config import WAF_DELAY
 
 
 class SearchResult:
@@ -60,7 +60,6 @@ def param_converter(data, url=False):
 def start_request(
     proxies,
     advanced=False,
-    waf=False,
     is_json=False,
     GET=False,
     url=None,
@@ -70,13 +69,13 @@ def start_request(
     base_url=None,
     full_query=None,
     category=None,
-    get_urls=True,
+    get_urls=False,
 ):
-    urls = []
+    urls = None
     try:
         if GET:
             cprint(
-                f"Searching for GET: {full_query} ({category}) with proxy {proxy}...",
+                f"Searching for GET: {full_query} ({category}) with proxy {proxies['https']}...",
                 "yellow",
                 file=sys.stderr,
             )
@@ -91,7 +90,7 @@ def start_request(
             )
         elif is_json:
             cprint(
-                f"Searching for POST + JSON: {full_query} ({category}) with proxy {proxy}...",
+                f"Searching for POST + JSON: {full_query} ({category}) with proxy {proxies['https']}...",
                 "yellow",
                 file=sys.stderr,
             )
@@ -105,7 +104,7 @@ def start_request(
             )
         else:
             cprint(
-                f"Searching for POST: {full_query} ({category}) with proxy {proxy}...",
+                f"Searching for POST: {full_query} ({category}) with proxy {proxies['https']}...",
                 "yellow",
                 file=sys.stderr,
             )
@@ -120,6 +119,7 @@ def start_request(
 
         # Parse
         if get_urls:
+            urls = []
             soup = BeautifulSoup(response.text, "html.parser")
             result_block = soup.find_all("div", attrs={"class": "g"})
             for result in result_block:
@@ -140,8 +140,7 @@ def start_request(
         # Placeholder for URL extraction logic
         return urls  # Return the category and a placeholder result
     except requests.exceptions.ProtocolError:
-        cprint("WAF is dropping suspicious requests.")
-        cprint("Scanning will continue after 10 minutes.")
+        cprint("WAF is dropping suspicious requests. Scanning will continue after 10 minutes.", color="red", file=sys.stderr)
         time.sleep(WAF_DELAY)
     except requests.exceptions.RequestException as e:
         # cprint(f"Error searching for {full_query} with proxy {proxy}: {e}", 'red', file=sys.stderr)

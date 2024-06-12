@@ -8,7 +8,7 @@ import itertools
 import requests
 from termcolor import cprint
 from tqdm import tqdm
-
+import sys 
 
 def round_robin_proxies(proxies):
     return itertools.cycle(proxies)
@@ -17,7 +17,7 @@ def round_robin_proxies(proxies):
 def is_proxy_alive(proxy):
     try:
         response = requests.get('http://www.google.com', 
-                                proxies={"http": proxy, "https": proxy}, timeout=5)
+                                proxies={"http": proxy, "https": proxy}, timeout=5, verify=False)
         return response.status_code == 200
     except requests.RequestException:
         return False

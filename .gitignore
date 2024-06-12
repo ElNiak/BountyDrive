@@ -2,3 +2,4 @@ venv/
 vulnerable*.txt
 potential*.txt
 *.log
+__pycache__/

@@ -15,7 +15,18 @@ python3 bounty_drive.py
 ```
 
 ```bash
-
+Please specify the website extension(eg- .in,.com,.pk) [default: ] -----> 
+Do you want to restrict search to subdomain present in target.txt ? [default: true (vs false)] -----> true
+Please specify the total no. of websites you want [default: 10] ----> 
+From which Google page you want to start(eg- 1,2,3) [default: 1] ----> 
+Do you want to do the Google dorking scan phase ? [default: true (vs false)] ----> 
+Do you want to do the Github dorking scan phase ? [default: true (vs false)] ----> false
+Do you want to test for XSS vulnerability ? [default: true (vs false)] ----> true
+Do you want to encode XSS payload ? [default: true (vs false)] ----> false
+Do you want to fuzz XSS payload ? [default: true (vs false)] ----> true
+Do you want to test blind XSS payload ? [default: true (vs false)] ----> false
+Do you want to test for SQLi vulnerability ? [default: true (vs false)] ----> false
+Extension: , Total Output: 10, Page No: 1, Do Google Dorking: True, Do Github Dorking False
 ```
 
 ## Tips
