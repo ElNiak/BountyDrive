@@ -14,6 +14,10 @@ make
 python3 bounty_drive.py
 ```
 
+```bash
+
+```
+
 ## Tips
 Use Google hacking database(https://www.exploit-db.com/google-hacking-database) for good sqli dorks.
 
