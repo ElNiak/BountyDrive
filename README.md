@@ -11,15 +11,15 @@ make
 ```
 ## Usage
 ```bash
-python3 bounty_drive.py
+python3 py
 ```
 
 ```bash
-Please specify the website extension(eg- .in,.com,.pk) [default: ] -----> 
+Please specify the website extension(eg- .in,.com,.pk) [default: ] ----->
 Do you want to restrict search to subdomain present in target.txt ? [default: true (vs false)] -----> true
-Please specify the total no. of websites you want [default: 10] ----> 
-From which Google page you want to start(eg- 1,2,3) [default: 1] ----> 
-Do you want to do the Google dorking scan phase ? [default: true (vs false)] ----> 
+Please specify the total no. of websites you want [default: 10] ---->
+From which Google page you want to start(eg- 1,2,3) [default: 1] ---->
+Do you want to do the Google dorking scan phase ? [default: true (vs false)] ---->
 Do you want to do the Github dorking scan phase ? [default: true (vs false)] ----> false
 Do you want to test for XSS vulnerability ? [default: true (vs false)] ----> true
 Do you want to encode XSS payload ? [default: true (vs false)] ----> false
@@ -39,6 +39,10 @@ Free proxies from free-proxy-list.net
 Updated at 2024-02-18 15:32:02 UTC.
 
 TODO: we should proxy proxy chains
+
+## TODO
+
+- use singletons for config !!!
 
 # HAPPY HUNTING
 
@@ -63,6 +67,8 @@ https://obheda12.medium.com/gitdorker-a-new-tool-for-manual-github-dorking-and-e
 https://github.com/spekulatius/infosec-dorks
 
 https://github.com/RevoltSecurities/Subdominator
+
+https://github.com/Raghavd3v/CRLFsuite/blob/main/crlfsuite/db/wafsignatures.json
 
 # TODO
 add a vulnerable wordpress plugin and then dork to find vulnerable wordpress sites

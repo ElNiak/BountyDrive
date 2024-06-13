@@ -8,72 +8,72 @@ import terminal_banner
 # Animation
 #########################################################################################
 
-banner_res = ("""
+banner_res = """
         ___               ____
 / _ \___ ___ __ __/ / /____
 / , _/ -_|_-</ // / / __(_-<
 /_/|_|\__/___/\_,_/_/\__/___/
 *****************************
-                                                                                
-        """)
+
+        """
 banner_terminal_res = terminal_banner.Banner(banner_res)
-        
+
+
 def load_animation():
-        banner = ("""
-                        
+    banner = """
+
 ▄▄▄▄·       ▄• ▄▌ ▐ ▄ ▄▄▄▄▄ ▄· ▄▌·▄▄▄▄  ▄▄▄  ▪   ▌ ▐·▄▄▄ .
 ▐█ ▀█▪▪     █▪██▌•█▌▐█•██  ▐█▪██▌██▪ ██ ▀▄ █·██ ▪█·█▌▀▄.▀·
 ▐█▀▀█▄ ▄█▀▄ █▌▐█▌▐█▐▐▌ ▐█.▪▐█▌▐█▪▐█· ▐█▌▐▀▀▄ ▐█·▐█▐█•▐▀▀▪▄
 ██▄▪▐█▐█▌.▐▌▐█▄█▌██▐█▌ ▐█▌· ▐█▀·.██. ██ ▐█•█▌▐█▌ ███ ▐█▄▄▌
-·▀▀▀▀  ▀█▄▀▪ ▀▀▀ ▀▀ █▪ ▀▀▀   ▀ • ▀▀▀▀▀• .▀  ▀▀▀▀. ▀   ▀▀▀ 
-        
-                        Made with ❤️ 
-        For the Community, By the Community   
+·▀▀▀▀  ▀█▄▀▪ ▀▀▀ ▀▀ █▪ ▀▀▀   ▀ • ▀▀▀▀▀• .▀  ▀▀▀▀. ▀   ▀▀▀
+
+                        Made with ❤️
+        For the Community, By the Community
 
         ###################################
                 Made by ElNiak
-linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
+linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/
         Github - https://github.com/elniak
-                                                                                
-        """)
-        banner_terminal = terminal_banner.Banner(banner)
-        cprint(banner_terminal , 'green', file=sys.stderr)
 
-        load_str = "Preparing the Dorking Pentesting...."
-        ls_len = len(load_str)
+        """
+    banner_terminal = terminal_banner.Banner(banner)
+    cprint(banner_terminal, "green", file=sys.stderr)
 
-        animation = "|/-\\"
-        anicount = 0
-        counttime = 0
-        i = 0
-        while (counttime != 100):
-                time.sleep(0.075)
-                load_str_list = list(load_str)
-                x = ord(load_str_list[i])
-                y = 0
-                if x != 32 and x != 46:
-                        if x>90:
-                                y = x-32
-                        else:
-                                y = x + 32
-                        load_str_list[i]= chr(y)
+    load_str = "Preparing the Dorking Pentesting...."
+    ls_len = len(load_str)
 
-                res =''
-                for j in range(ls_len):
-                        res = res + load_str_list[j]
+    animation = "|/-\\"
+    anicount = 0
+    counttime = 0
+    i = 0
+    while counttime != 100:
+        time.sleep(0.040)
+        load_str_list = list(load_str)
+        x = ord(load_str_list[i])
+        y = 0
+        if x != 32 and x != 46:
+            if x > 90:
+                y = x - 32
+            else:
+                y = x + 32
+            load_str_list[i] = chr(y)
 
-                sys.stdout.write("\r"+res + animation[anicount])
-                sys.stdout.flush()
+        res = ""
+        for j in range(ls_len):
+            res = res + load_str_list[j]
 
-                load_str = res
+        sys.stdout.write("\r" + res + animation[anicount])
+        sys.stdout.flush()
 
-                anicount = (anicount + 1)% 4
-                i =(i + 1)% ls_len
-                counttime = counttime + 1
+        load_str = res
 
-        if os.name =="nt":
-                os.system("cls")
+        anicount = (anicount + 1) % 4
+        i = (i + 1) % ls_len
+        counttime = counttime + 1
 
-        else:
-                os.system("clear")
-      
+    if os.name == "nt":
+        os.system("cls")
+
+    else:
+        os.system("clear")

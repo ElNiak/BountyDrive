@@ -22,9 +22,9 @@
 /view.php?PID= /view.php?PID=
 /winners.php?year=2008&amp;type= /winners.php?year=2008&amp;type=
 /winners.php?year=2008&type= /winners.php?year=2008&type=
-index.php?option=com_reservations&amp;task=askope&amp;nidser=2&amp;namser= “com_reservations”
-index.php?option=com_reservations&task=askope&nidser=2&namser= “com_reservations”
-intext:”Website by Mile High Creative”
+index.php?option=com_reservations&amp;task=askope&amp;nidser=2&amp;namser= "com_reservations"
+index.php?option=com_reservations&task=askope&nidser=2&namser= "com_reservations"
+intext:"Website by Mile High Creative"
 inurl:.com/search.asp
 inurl:/poll/default.asp?catid=
 inurl:/products/classified/headersearch.php?sid=
@@ -37,28 +37,28 @@ inurl:com_feedpostold/feedpost.php?url=
 inurl:headersearch.php?sid=
 inurl:scrapbook.php?id=
 inurl:search.php?q=
-inurl:”.php?author=”
-inurl:”.php?cat=”
-inurl:”.php?cmd=”
-inurl:”.php?feedback=”
-inurl:”.php?file=”
-inurl:”.php?from=”
-inurl:”.php?keyword=”
-inurl:”.php?mail=”
-inurl:”.php?max=”
-inurl:”.php?pass=”
-inurl:”.php?q=”
-inurl:”.php?query=”
-inurl:”.php?search=”
-inurl:”.php?searchstring=”
-inurl:”.php?searchst­ring=”
-inurl:”.php?tag=”
-inurl:”.php?txt=”
-inurl:”.php?vote=”
-inurl:”.php?years=”
-inurl:”.php?z=”
-inurl:”contentPage.php?id=”
-inurl:”displayResource.php?id=”
+inurl:".php?author="
+inurl:".php?cat="
+inurl:".php?cmd="
+inurl:".php?feedback="
+inurl:".php?file="
+inurl:".php?from="
+inurl:".php?keyword="
+inurl:".php?mail="
+inurl:".php?max="
+inurl:".php?pass="
+inurl:".php?q="
+inurl:".php?query="
+inurl:".php?search="
+inurl:".php?searchstring="
+inurl:".php?searchst­ring="
+inurl:".php?tag="
+inurl:".php?txt="
+inurl:".php?vote="
+inurl:".php?years="
+inurl:".php?z="
+inurl:"contentPage.php?id="
+inurl:"displayResource.php?id="
 pages/match_report.php?mid= pages/match_report.php?mid=
 inurl:/search?query=<script>alert('XSS')</script>
 inurl:/login?username=<script>alert('XSS')</script>

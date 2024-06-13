@@ -4,3 +4,4 @@ tqdm
 selenium
 webdriver_manager
 sqlmap
+eventlet
