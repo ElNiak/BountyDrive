@@ -44,11 +44,11 @@ def google_search_with_proxy(dork_tuple, proxy, category, retries=3, advanced=Fa
     data = None
     GET, POST = True, False
     params = {
-        "client": "ubuntu-sn",
-        "channel": "fs",
+        # "client": "ubuntu-sn",
+        # "channel": "fs",
         "q": full_query,
-        # "num": TOTAL_OUTPUT,  # Prevents multiple requests
-        # "hl": LANG,
+        "num": TOTAL_OUTPUT,  # Prevents multiple requests
+        "hl": LANG,
     }
 
     urls = None
@@ -112,11 +112,11 @@ def generate_dork_query(query, extension):
         query = query.replace(tag, "")
 
     # Ensure the query is properly enclosed in quotes if it contains quotes
-    if '"' in query:
-        if not query.startswith('"'):
-            query = '"' + query
-        if not query.endswith('"'):
-            query = query + '"'
+    # if '"' in query:
+    if not query.startswith('"'):
+        query = '"' + query
+    if not query.endswith('"'):
+        query = query + '"'
 
     in_url_query = "inurl:" + query
     in_text_query = "intext:" + query
