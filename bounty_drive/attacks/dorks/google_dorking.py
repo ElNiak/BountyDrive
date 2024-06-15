@@ -5,13 +5,15 @@
 # Proxy-aware Google search function
 import glob
 import random
+import threading
+import time
+from tqdm import tqdm
 import sys
 import re
 import concurrent.futures
 from termcolor import cprint
-from tqdm import tqdm
 
-from attacks.dorks import dorking_config
+from attacks.dorks.dorking_config import dorking_config
 from utils.app_config import (
     DEFAULT_TOTAL_OUTPUT,
     EXTENSION,
@@ -19,13 +21,30 @@ from utils.app_config import (
     POTENTIAL_PATHS,
     TOTAL_OUTPUT,
     USER_AGENTS,
+    use_nordvpn,
 )
 from utils.proxies import round_robin_proxies
 from utils.request_manager import param_converter, start_request
 from utils.results_manager import safe_add_result
 
+from nordvpn_switcher.nordvpn_switch import initialize_VPN, rotate_VPN, terminate_VPN
 
-def google_search_with_proxy(dork_tuple, proxy, category, retries=3, advanced=False):
+
+def change_vpn(time=300):
+    rotate_VPN()
+    time.sleep(time)
+
+
+def google_search_with_proxy(
+    dork_tuple,
+    proxy,
+    category,
+    retries=1,
+    advanced=False,
+    total_output=TOTAL_OUTPUT,
+    generated_dorks=True,
+    secured=True,
+):
     try:
         query, extension, category = dork_tuple
     except ValueError:
@@ -33,42 +52,96 @@ def google_search_with_proxy(dork_tuple, proxy, category, retries=3, advanced=Fa
         extension = ""
 
     base_url = "https://www.google.com/search"
-    headers = {"User-Agent": random.choice(USER_AGENTS)}
-    proxies = {"http": proxy, "https": proxy}
-
-    full_query = generate_dork_query(query, extension)
-
-    # Threat data as path
-    is_json = False
-    # url = param_converter(data, url) # TODO
-    data = None
-    GET, POST = True, False
-    params = {
-        # "client": "ubuntu-sn",
-        # "channel": "fs",
-        "q": full_query,
-        "num": TOTAL_OUTPUT,  # Prevents multiple requests
-        "hl": LANG,
+    headers = {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Connection": "close",
     }
 
-    urls = None
-    for _ in range(retries):
-        urls = start_request(
-            proxies=proxies,
-            advanced=advanced,
-            GET=GET,
-            data=data,
-            headers=headers,
-            params=params,
-            base_url=base_url,
-            full_query=full_query,
-            is_json=is_json,
-            category=category,
-            scrap_urls=True,
-        )
-        if urls:
-            return category, urls, full_query
-    return category, urls, full_query
+    if "socks5" in proxy:
+        proxies = {"https": proxy}
+    else:
+        proxies = {"http": proxy, "https": proxy}
+
+    if generated_dorks:
+        full_query = generate_dork_query(query, extension)
+    else:
+        full_query = query
+
+    if isinstance(full_query, list):
+        for q in full_query:
+            # Threat data as path
+            is_json = False
+            # url = param_converter(data, url) # TODO
+            data = None
+            GET, POST = True, False
+            params = {
+                # "client": "ubuntu-sn",
+                # "channel": "fs",
+                "q": q,
+                "num": total_output,  # Prevents multiple requests
+                "hl": LANG,
+            }
+
+            urls = None
+            for retry_no in range(retries):
+                urls = start_request(
+                    proxies=proxies,
+                    advanced=advanced,
+                    GET=GET,
+                    data=data,
+                    headers=headers,
+                    params=params,
+                    base_url=base_url,
+                    full_query=q,
+                    is_json=is_json,
+                    category=category,
+                    scrap_urls=True,
+                    retry_no=retry_no,
+                    secured=secured,
+                )
+                if urls:
+                    result = category, urls, q
+                    safe_add_result(result)
+        return
+    else:
+        # Threat data as path
+        is_json = False
+        # url = param_converter(data, url) # TODO
+        data = None
+        GET, POST = True, False
+        params = {
+            # "client": "ubuntu-sn",
+            # "channel": "fs",
+            "q": full_query,
+            "num": total_output,  # Prevents multiple requests
+            "hl": LANG,
+        }
+
+        urls = None
+        for retry_no in range(retries):
+            urls = start_request(
+                proxies=proxies,
+                advanced=advanced,
+                GET=GET,
+                data=data,
+                headers=headers,
+                params=params,
+                base_url=base_url,
+                full_query=full_query,
+                is_json=is_json,
+                category=category,
+                scrap_urls=True,
+                retry_no=retry_no,
+                secured=secured,
+            )
+            if urls:
+                result = category, urls, full_query
+                safe_add_result(result)
+                return
+
+    result = category, urls, full_query
+    safe_add_result(result)
+    return
 
 
 google_dork_tags = [
@@ -123,24 +196,41 @@ def generate_dork_query(query, extension):
 
     query = in_url_query + " | " + in_text_query
 
-    query = query + " | " + "inurl:&"
+    query = query + " | "  # + "inurl:&"
 
     # Incorporate subdomain into the search query if specified
     if len(dorking_config.SUBDOMAIN) > 0:
         # Remove any existing site: tag and its value
+        full_query = []
         query = re.sub(r"site:[^\s]+", "", query)
-        to_search = " | ".join(f"site:{domain}" for domain in dorking_config.SUBDOMAIN)
-        full_query = f"({to_search}) & ({query})".strip()
+        for domain in dorking_config.SUBDOMAIN:
+            to_search = f"site:{domain}"
+        full_query.append(f"({to_search}) & ({query})".strip())
     else:
         full_query = f"({query})".strip()
 
     if extension and len(extension) > 0:
-        full_query = full_query + f" & filetype:{extension}"
+        if isinstance(extension, full_query):
+            full_query_copy = []
+            for q in full_query:
+                q = q + f" & filetype:{q}"
+                full_query_copy.append(q)
+            full_query = full_query_copy
+        else:
+            full_query = full_query + f" & filetype:{extension}"
 
     return full_query  # Indicate failure after retries
 
 
 def load_google_dorks_and_search(extensions=None, proxies=None):
+    if proxies and len(proxies) < 1:
+        cprint(
+            f"Using proxies -> you should have at least one UP",
+            "red",
+            file=sys.stderr,
+        )
+        exit()
+
     proxy_cycle = round_robin_proxies(proxies)
 
     search_tasks = {}
@@ -171,13 +261,21 @@ def load_google_dorks_and_search(extensions=None, proxies=None):
         f"Total number of dorks: {len(search_tasks_fill)}", "yellow", file=sys.stderr
     )
 
+    if use_nordvpn:
+        thread = threading.Thread(target=change_vpn)
+        thread.start()
+
     # Now, append a proxy to each task
+    number_of_worker = min(len(proxies), 30)  # /2
+    cprint(f"Number of workers: {number_of_worker}", "yellow", file=sys.stderr)
     search_tasks_with_proxy = []
     for task, cat in search_tasks_fill:
         proxy = next(proxy_cycle)
         search_tasks_with_proxy.append({"dork": task, "proxy": proxy, "category": cat})
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=number_of_worker
+    ) as executor:
         future_to_search = {
             executor.submit(
                 google_search_with_proxy, task["dork"], task["proxy"], task["category"]
@@ -189,9 +287,7 @@ def load_google_dorks_and_search(extensions=None, proxies=None):
             total=len(future_to_search),
             desc="Searching for vulnerable website",
             unit="site",
-            leave=True,
-            position=0,
+            # leave=True,
+            # position=0,
         ):
-            result = future.result()
-            if result:
-                safe_add_result(result)
+            future.result()

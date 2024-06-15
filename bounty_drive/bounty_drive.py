@@ -1,12 +1,16 @@
 # /usr/bin/python3
 import argparse
+import socket
 import sys
 from termcolor import colored, cprint
 import os
 
 
-from attacks.dorks import dorking_config
-from attacks.dorks.google_dorking import load_google_dorks_and_search
+from attacks.dorks.dorking_config import dorking_config
+from attacks.dorks.google_dorking import (
+    google_search_with_proxy,
+    load_google_dorks_and_search,
+)
 
 from attacks.dorks.github_dorking import *
 
@@ -22,6 +26,10 @@ from attacks.sqli.sqli import test_vulnerability_sqli
 from utils.banner import *
 from utils.banner import load_animation
 from utils.logger import *
+
+from fp.fp import FreeProxy, FreeProxyException
+from nordvpn_switcher.nordvpn_switch import initialize_VPN, rotate_VPN, terminate_VPN
+import csv
 
 import utils.logger
 
@@ -155,7 +163,16 @@ def get_user_input():
     use_proxy = (
         input(
             colored(
-                f"Do you want to use proxies ? [default: true (vs false)] -----> ",
+                f"Do you want to use proxies ? [default: true (vs false)] \n----> ",
+                "cyan",
+            )
+        )
+        or "true"
+    )
+    use_vpn = (
+        input(
+            colored(
+                f"Do you want to use VPN (NordVPN) ? [default: true (vs false)] \n----> ",
                 "cyan",
             )
         )
@@ -164,7 +181,7 @@ def get_user_input():
     extension = (
         input(
             colored(
-                f"Please specify the website extension(eg- .in,.com,.pk) [default: {DEFAULT_EXTENSION}] -----> ",
+                f"Please specify the website extension(eg- .in,.com,.pk) [default: {DEFAULT_EXTENSION}] \n----> ",
                 "cyan",
             )
         )
@@ -173,7 +190,7 @@ def get_user_input():
     subdomain = (
         input(
             colored(
-                f"Do you want to restrict search to subdomain present in target.txt ? [default: true (vs false)] -----> ",
+                f"Do you want to restrict search to subdomain present in target.txt ? [default: true (vs false)] \n----> ",
                 "cyan",
             )
         )
@@ -182,7 +199,7 @@ def get_user_input():
     total_output = (
         input(
             colored(
-                f"Please specify the total no. of websites you want [default: {DEFAULT_TOTAL_OUTPUT}] ----> ",
+                f"Please specify the total no. of websites you want [default: {DEFAULT_TOTAL_OUTPUT}] \n----> ",
                 "cyan",
             )
         )
@@ -191,7 +208,7 @@ def get_user_input():
     page_no = (
         input(
             colored(
-                f"From which Google page you want to start(eg- 1,2,3) [default: {DEFAULT_PAGE_NO}] ----> ",
+                f"From which Google page you want to start(eg- 1,2,3) [default: {DEFAULT_PAGE_NO}] \n----> ",
                 "cyan",
             )
         )
@@ -201,7 +218,7 @@ def get_user_input():
     do_dorking_google = (
         input(
             colored(
-                f"Do you want to do the Google dorking scan phase ? [default: true (vs false)] ----> ",
+                f"Do you want to do the Google dorking scan phase ? [default: true (vs false)] \n----> ",
                 "cyan",
             )
         )
@@ -210,7 +227,7 @@ def get_user_input():
     do_dorking_github = (
         input(
             colored(
-                f"Do you want to do the Github dorking scan phase ? [default: false (vs true)] ----> ",
+                f"Do you want to do the Github dorking scan phase ? [default: false (vs true)] \n----> ",
                 "cyan",
             )
         )
@@ -220,7 +237,7 @@ def get_user_input():
     do_xss = (
         input(
             colored(
-                f"Do you want to test for XSS vulnerability ? [default: true (vs false)] ----> ",
+                f"Do you want to test for XSS vulnerability ? [default: true (vs false)] \n----> ",
                 "cyan",
             )
         )
@@ -231,7 +248,7 @@ def get_user_input():
         do_encode_xss = (
             input(
                 colored(
-                    f"Do you want to encode XSS payload ? [default: true (vs false)] ----> ",
+                    f"Do you want to encode XSS payload ? [default: true (vs false)] \n----> ",
                     "cyan",
                 )
             )
@@ -240,7 +257,7 @@ def get_user_input():
         do_fuzzing_xss = (
             input(
                 colored(
-                    f"Do you want to fuzz XSS payload ? [default: true (vs false)] ----> ",
+                    f"Do you want to fuzz XSS payload ? [default: true (vs false)] \n----> ",
                     "cyan",
                 )
             )
@@ -249,7 +266,7 @@ def get_user_input():
         do_blind_xss = (
             input(
                 colored(
-                    f"Do you want to test blind XSS payload ? [default: true (vs false)] ----> ",
+                    f"Do you want to test blind XSS payload ? [default: true (vs false)] \n----> ",
                     "cyan",
                 )
             )
@@ -265,7 +282,7 @@ def get_user_input():
     do_sqli = (
         input(
             colored(
-                f"Do you want to test for SQLi vulnerability ? [default: false (vs true)] ----> ",
+                f"Do you want to test for SQLi vulnerability ? [default: false (vs true)] \n----> ",
                 "cyan",
             )
         )
@@ -279,7 +296,7 @@ def get_user_input():
     do_dorking_github = True if do_dorking_github.lower() == "true" else False
     subdomain = True if subdomain.lower() == "true" else False
     use_proxy = True if use_proxy.lower() == "true" else False
-
+    use_vpn = True if use_vpn.lower() == "true" else False
     do_sqli = True if do_sqli.lower() == "true" else False
     if do_sqli:
         pass
@@ -288,23 +305,51 @@ def get_user_input():
         del VULN_PATHS["sqli"]
 
     if subdomain:
-        # TODO allow multiple subdomains
         with open("target.txt", "r") as file:
             subdomain = file.read().splitlines()
+        # for domain in subdomain:
+        #     for key, value in VULN_PATHS.items():
+        #         google_search_with_proxy(
+        #             (f"site:{domain}", None, key),
+        #             None,
+        #             key,
+        #             total_output=10,
+        #             generated_dorks=False,
+        #             secured=True
+        #         )
+
         dorking_config.SUBDOMAIN = subdomain
 
     cprint(
-        f"Extension: {extension}, Total Output: {total_output}, Page No: {page_no}, Do Google Dorking: {do_dorking_google}, Do Github Dorking {do_dorking_github}",
+        f"Extension: {extension}, Total Output: {total_output}, Page No: {page_no}, Do Google Dorking: {do_dorking_google}, Do Github Dorking {do_dorking_github}, Do XSS: {do_xss}, Do SQLi: {do_sqli},\n Domain: {subdomain}, Use Proxy: {use_proxy}",
         "green",
         file=sys.stderr,
     )
 
-    return extension, do_dorking_google, do_dorking_github, do_sqli, do_xss, use_proxy
+    return (
+        extension,
+        do_dorking_google,
+        do_dorking_github,
+        do_sqli,
+        do_xss,
+        use_proxy,
+        use_vpn,
+    )
 
 
 if __name__ == "__main__":
     try:
         load_animation()
+        for key, value in VULN_PATHS.items():
+            if not os.path.exists(value[0]):
+                with open(value[0], "w") as file:
+                    file.write("")
+        for key, value in POTENTIAL_PATHS.items():
+            if not os.path.exists(value[0]):
+                with open(value[0], "w") as file:
+                    file.write("")
+                with open(value[0].replace(".txt", "_dork.txt"), "w") as file:
+                    file.write("")
         if len(sys.argv) > 3:
             (
                 extension,
@@ -322,23 +367,75 @@ if __name__ == "__main__":
                 do_sqli,
                 do_xss,
                 use_proxy,
+                use_vpn,
             ) = get_user_input()
 
-        for key, value in VULN_PATHS.items():
-            if not os.path.exists(value[0]):
-                with open(value[0], "w") as file:
-                    file.write("")
-        for key, value in POTENTIAL_PATHS.items():
-            if not os.path.exists(value[0]):
-                with open(value[0], "w") as file:
-                    file.write("")
-                with open(value[0].replace(".txt", "_dork.txt"), "w") as file:
-                    file.write("")
-
         proxies = [None]
+        username = None
+        password = None
         if use_proxy:
-            proxies = setup_proxies()
-            cprint("Number of proxies: " + str(len(proxies)), "green", file=sys.stderr)
+            # TODO check if proxy alive ?
+            # proxies = setup_proxies()
+            try:
+                # Read NordVPN logins csv
+                if os.path.exists("proxies/nordvpn_login.csv"):
+                    with open("proxies/nordvpn_login.csv", "r") as file:
+                        nordvpn = list(csv.reader(file))
+                        username = nordvpn[1][0]
+                        password = nordvpn[1][1]
+                        use_nordvpn = True
+                        cprint(
+                            f"You have NordVPN account using these proxies {username} {password}",
+                            "green",
+                            file=sys.stderr,
+                        )
+                    # TODO: curl -s https://nordvpn.com/api/server | jq -r ".[] | select(.features.socks==true) | [.domain, .name] | @tsv"
+                    with open("proxies/nordvpn-proxy-list.txt", "r") as file:
+                        proxies = []
+                        for line in file.readlines():
+                            cprint(f"Proxy: {line}", "green", file=sys.stderr)
+                            line = line.replace("\n", "")
+                            # socks5h enable hostname resolution
+                            p = "socks5h://" + username + ":" + password + "@" + line
+                            proxies.append(p)
+                            cprint(f"Proxy: {p}", "green", file=sys.stderr)
+                else:
+                    cprint("Using free proxies ", "green", file=sys.stderr)
+                    proxies = FreeProxy(
+                        google=None, rand=True, https=True, timeout=10
+                    ).get_proxy_list(repeat=False)
+
+                cprint(
+                    "Number of proxies: " + str(len(proxies)), "green", file=sys.stderr
+                )
+            except FreeProxyException as e:
+                cprint(
+                    f"FreeProxyException: {e}",
+                    "red",
+                    file=sys.stderr,
+                )
+                exit()
+
+        if use_vpn:
+            if username and password:
+                try:
+                    initialize_VPN(save=1, area_input=["complete rotation"])
+                except Exception as e:
+                    cprint(
+                        f"VPN initialization error: {e}",
+                        "red",
+                        file=sys.stderr,
+                    )
+                    # exit()
+                    use_nordvpn = False
+            else:
+                cprint(
+                    "You need to provide NordVPN credentials to use VPN",
+                    "red",
+                    file=sys.stderr,
+                )
+                # exit()
+                use_nordvpn = False
 
         if do_dorking_google:
             cprint(

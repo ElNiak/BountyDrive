@@ -36,37 +36,41 @@ def safe_add_result(result):
                 if "https://www.google.com/sorry/" not in url:
                     if "github.com" in url:
                         with LOCKS["github"]:
-                            with open(GITHUB_FILE_PATH, "a") as file:
-                                file.write(url + "\n")
-                            with open(
-                                GITHUB_FILE_PATH.replace(".txt", "_dork.txt"), "a"
-                            ) as file:
-                                file.write(dork + "\n")
-                            POTENTIAL_PATHS["github"][1].add(url)
-                            cprint(
-                                f"Added {url} to github list", "green", file=sys.stderr
-                            )
+                            if url not in POTENTIAL_PATHS["github"][1]:
+                                with open(GITHUB_FILE_PATH, "a") as file:
+                                    file.write(url + "\n")
+                                with open(
+                                    GITHUB_FILE_PATH.replace(".txt", "_dork.txt"), "a"
+                                ) as file:
+                                    file.write(dork + "\n")
+                                POTENTIAL_PATHS["github"][1].add(url)
+                                cprint(
+                                    f"Added {url} to github list",
+                                    "green",
+                                    file=sys.stderr,
+                                )
                     else:
                         with LOCKS[category]:  # Ensure thread-safe write operation
-                            with open(
-                                POTENTIAL_PATHS[category][0], "a"
-                            ) as file:  # Open file in append mode
-                                file.write(url + "\n")  # Write URL to file
-                            with open(
-                                POTENTIAL_PATHS[category][0].replace(
-                                    ".txt", "_dork.txt"
-                                ),
-                                "a",
-                            ) as file:
-                                file.write(dork + "\n")
-                            POTENTIAL_PATHS[category][1].add(
-                                url
-                            )  # Optionally maintain the set
-                            cprint(
-                                f"Added {url} to {category} list",
-                                "blue",
-                                file=sys.stderr,
-                            )
+                            if url not in POTENTIAL_PATHS[category][1]:
+                                with open(
+                                    POTENTIAL_PATHS[category][0], "a"
+                                ) as file:  # Open file in append mode
+                                    file.write(url + "\n")  # Write URL to file
+                                with open(
+                                    POTENTIAL_PATHS[category][0].replace(
+                                        ".txt", "_dork.txt"
+                                    ),
+                                    "a",
+                                ) as file:
+                                    file.write(dork + "\n")
+                                POTENTIAL_PATHS[category][1].add(
+                                    url
+                                )  # Optionally maintain the set
+                                cprint(
+                                    f"Added {url} to {category} list",
+                                    "blue",
+                                    file=sys.stderr,
+                                )
                 else:
                     cprint(
                         f"Google blocked us from accessing {url}",

@@ -1,4 +1,5 @@
 import json
+import random
 import re
 import sys
 import time
@@ -8,7 +9,9 @@ from bs4 import BeautifulSoup
 import requests
 from termcolor import cprint
 
-from utils.app_config import CURRENT_DELAY, INITIAL_DELAY, REQUEST_DELAY, WAF_DELAY
+from utils.app_config import CURRENT_DELAY, LONG_DELAY, REQUEST_DELAY, WAF_DELAY
+
+from fp.fp import FreeProxyException
 
 
 class SearchResult:
@@ -87,94 +90,196 @@ def start_request(
     full_query=None,
     category=None,
     scrap_urls=False,
+    retry_no=0,
+    secured=False,
 ):
     urls = None
     try:
         if GET:
             cprint(
-                f"Searching for GET: {base_url} and parameters {params} ({category} and with proxy {proxies['https']}) ...",
+                f"Searching for GET (n° {retry_no}): {base_url} & parameters {params} & headers {headers} - ({category} and with proxy {proxies}) ...",
                 "yellow",
                 file=sys.stderr,
             )
-            response = requests.get(
+            response = requests.Session().get(
                 base_url,
                 # data=data[0],
                 headers=headers,
                 params=params,
+                allow_redirects=True,
                 proxies=proxies,
-                verify=True,  # TODO add parameter for that
+                # cookies = {'CONSENT' : 'YES+'},
+                cookies={
+                    "CONSENT": "PENDING+987",
+                    "SOCS": "CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg",
+                },  # FOR EU USERS -> ANNOYING to parse
+                verify=secured,  # TODO add parameter for that
                 timeout=REQUEST_DELAY,
             )
         elif is_json:
             cprint(
-                f"Searching for POST + JSON:  {base_url}/{full_query} with data {data} ({category} and  with proxy {proxies['https']}) ...",
+                f"Searching for POST + JSON (n° {retry_no}):  {base_url}/{full_query}  & data {data} & headers {headers} - ({category} and  with proxy {proxies}) ...",
                 "yellow",
                 file=sys.stderr,
             )
-            response = requests.post(
+            response = requests.Session().post(
                 base_url,
                 json=data[0],
                 headers=headers,
                 timeout=REQUEST_DELAY,
-                verify=True,
+                verify=secured,
+                cookies={
+                    "CONSENT": "PENDING+987",
+                    "SOCS": "CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg",
+                },  # FOR EU USERS
                 proxies=proxies,
             )
         else:
             cprint(
-                f"Searching for POST:  {base_url}/{full_query} with data {data} ({category} and with proxy {proxies['https']}) ...",
+                f"Searching for POST (n° {retry_no}):  {base_url}/{full_query}  & data {data} & headers {headers} - ({category} and with proxy {proxies}) ...",
                 "yellow",
                 file=sys.stderr,
             )
-            response = requests.post(
+            response = requests.Session().post(
                 base_url,
                 data=data[0],
                 headers=headers,
                 timeout=REQUEST_DELAY,
-                verify=True,
+                verify=secured,
+                cookies={
+                    "CONSENT": "PENDING+987",
+                    "SOCS": "CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg",
+                },  # FOR EU USERS
                 proxies=proxies,
             )
 
         # Parse Google response
-        if scrap_urls:
-            urls = []
-            soup = BeautifulSoup(response.text, "html.parser")
-            result_block = soup.find_all("div", attrs={"class": "g"})
-            for result in result_block:
-                # Find link, title, description
-                link = result.find("a", href=True)
-                title = result.find("h3")
-                description_box = result.find("div", {"style": "-webkit-line-clamp:2"})
-                if description_box:
-                    description = description_box.text
-                    if link and title and description:
-                        cprint(
-                            f"Link appended to potential urls: {link}",
-                            "yellow",
-                            file=sys.stderr,
+        if response.status_code != 200:
+            cprint(
+                f"Error in request ... - status code = {response.status_code}",
+                color="red",
+                file=sys.stderr,
+            )
+            if response.status_code == 429:
+                # delay = random.uniform(LONG_DELAY-5, LONG_DELAY+5)
+                # time.sleep(delay)  # Wait before retrying
+                retry_after = int(response.headers.get("Retry-After", 60))
+                cprint(
+                    f"Retry after {retry_after} secs ...",
+                    "red",
+                    file=sys.stderr,
+                )
+                time.sleep(retry_after)
+            elif response.status_code == 403:
+                cprint(
+                    "WAF is dropping suspicious requests. Scanning will continue after 10 minutes.",
+                    color="red",
+                    file=sys.stderr,
+                )
+                time.sleep(WAF_DELAY)
+        else:
+            if scrap_urls:
+                urls = []
+                soup = BeautifulSoup(response.text, "html.parser")
+                result_block = soup.find_all("div", attrs={"class": "g"})
+                cprint(
+                    f"Potentially {len(result_block)} links ...",
+                    "yellow",
+                    file=sys.stderr,
+                )
+                if len(result_block) == 0:
+                    cprint(
+                        f"No results found for {full_query} with proxy {proxies}\nTrying new parsing method",
+                        "yellow",
+                        file=sys.stderr,
+                    )
+                    # Locate all <a> tags that contain the search results
+                    for a_tag in soup.find_all("a", href=True):
+                        # Extract the href attribute
+                        href = a_tag["href"]
+                        # Only consider hrefs that start with '/url?'
+                        if href.startswith("/url?"):
+                            # Extract the actual URL using regex
+                            url_match = re.search(r"(https?://[^&]+)", href)
+                            if url_match:
+                                url = url_match.group(0)
+                                # Extract the title (text within <div> with specific class)
+                                title_tag = a_tag.find("h3") or a_tag.find(
+                                    "div", class_="BNeawe vvjwJb AP7Wnd UwRFLe"
+                                )
+                                title = title_tag.get_text() if title_tag else None
+                                if title:
+                                    cprint(
+                                        f"Link appended to potential urls: {url}",
+                                        "green",
+                                        file=sys.stderr,
+                                    )
+                                    urls.append(url)
+                else:
+                    for result in result_block:
+                        # Find link, title, description
+                        link = result.find("a", href=True)
+                        title = result.find("h3")
+                        description_box = result.find(
+                            "div", {"style": "-webkit-line-clamp:2"}
                         )
-                        if advanced:
-                            urls.append(
-                                SearchResult(link["href"], title.text, description)
-                            )
-                        else:
-                            urls.append(link["href"])
+                        if description_box:
+                            description = description_box.text
+                            if link and title and description:
+                                cprint(
+                                    f"Link appended to potential urls: {link['href']}",
+                                    "green",
+                                    file=sys.stderr,
+                                )
+                                if advanced:
+                                    urls.append(
+                                        SearchResult(
+                                            link["href"], title.text, description
+                                        )
+                                    )
+                                else:
+                                    urls.append(link["href"])
+
+            else:
+                cprint(
+                    f"No scraping  ...",
+                    "yellow",
+                    file=sys.stderr,
+                )
 
         # Placeholder for URL extraction logic
+        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
+        time.sleep(delay)  # Wait before retrying
         return urls  # Return the category and a placeholder result
-    except requests.exceptions.ProtocolError:
+    except requests.exceptions.ProxyError as e:
         cprint(
-            "WAF is dropping suspicious requests. Scanning will continue after 10 minutes.",
-            color="red",
-            file=sys.stderr,
-        )
-        time.sleep(WAF_DELAY)
-    except requests.exceptions.RequestException as e:
-        cprint(
-            f"Error searching for {full_query} with proxy {proxies['https']}: {e}",
+            f"ProxyError searching for {full_query} with proxy {proxies}: {e}",
             "red",
             file=sys.stderr,
         )
-        time.sleep(CURRENT_DELAY)  # Wait before retrying
+        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
+        time.sleep(delay)  # Wait before retrying
         # TODO add backoff timer for delay ?
-    finally:
         return urls
+    except requests.exceptions.RequestException as e:
+        cprint(
+            f"RequestException searching for {full_query} with proxy {proxies}: {e}",
+            "red",
+            file=sys.stderr,
+        )
+        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
+        time.sleep(delay)  # Wait before retrying
+        # TODO add backoff timer for delay ?
+        return urls
+    except FreeProxyException as e:
+        cprint(
+            f"FreeProxyException: {e}",
+            "red",
+            file=sys.stderr,
+        )
+        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
+        time.sleep(delay)  # Wait before retrying
+        # TODO add backoff timer for delay ?
+        return urls
+    # finally:
+    #     return urls

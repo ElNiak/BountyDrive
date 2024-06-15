@@ -2,17 +2,20 @@
 # XSS Vulnerability testing functions
 #########################################################################################
 import glob
+import random
 import re
 import sys
 import concurrent.futures
+import threading
 
 import requests
 from termcolor import cprint
 from tqdm import tqdm
 
+from utils.web_scraper import scrape_links_from_url
 from utils.proxies import round_robin_proxies
 from utils.waf_mitigation import waf_detector
-from utils.app_config import POTENTIAL_PATHS, VULN_PATHS
+from utils.app_config import POTENTIAL_PATHS, USER_AGENTS, VULN_PATHS
 from utils.request_manager import inject_params, inject_payload
 
 try:
@@ -36,7 +39,7 @@ def load_xss_payload():
     payloads = []
     for payload_file in glob.glob("attacks/xss/payloads/*"):
         # Extract the vulnerability type from the filename
-        with open(payload_file, "r") as file:
+        with open(payload_file, "r", errors="ignore") as file:
             # Assuming each file may contain multiple payloads, one per line
             payloads.append([line for line in file.readlines()])
     return payloads
@@ -156,17 +159,51 @@ def test_vulnerability_xss(proxies):
         # s = Service(ChromeDriverManager().install())
         # driver = webdriver.Chrome(service=s)
 
+        new_urls = []
+        headers = {"User-Agent": random.choice(USER_AGENTS)}
+
+        lock = threading.Lock()
+
         # Now, append a proxy to each task
+        number_of_worker = len(proxies)
         search_tasks_with_proxy = []
         for website in POTENTIAL_PATHS["xss"][1]:
             proxy = next(proxy_cycle)
             search_tasks_with_proxy.append({"website": website, "proxy": proxy})
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=number_of_worker
+        ) as executor:
             future_to_search = {
                 executor.submit(
-                    test_xss_target, task["website"], task["proxy"]
-                ): website
+                    scrape_links_from_url, task["website"], task["proxy"], headers
+                ): task
+                for task in search_tasks_with_proxy
+            }
+            for website in tqdm(
+                concurrent.futures.as_completed(future_to_search),
+                desc=f"Upating links DB for {website}",
+                unit="site",
+            ):
+                with lock:
+                    new_urls += website.result()
+
+        # crawl the website for more links TODO
+
+        POTENTIAL_PATHS["xss"][1] += new_urls
+
+        # Now, append a proxy to each task
+        number_of_worker = len(proxies)
+        search_tasks_with_proxy = []
+        for website in POTENTIAL_PATHS["xss"][1]:
+            proxy = next(proxy_cycle)
+            search_tasks_with_proxy.append({"website": website, "proxy": proxy})
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=number_of_worker
+        ) as executor:
+            future_to_search = {
+                executor.submit(test_xss_target, task["website"], task["proxy"]): task
                 for task in search_tasks_with_proxy
             }
             for website in tqdm(
@@ -177,9 +214,11 @@ def test_vulnerability_xss(proxies):
                 result, payload_url = website.result()
                 if result:
                     VULN_PATHS["xss"][1].append(payload_url)
-                    cprint(f"[VULNERABLE] {payload_url}", "red", file=sys.stderr)
+                    cprint(f"[VULNERABLE XSS] {payload_url}", "green", file=sys.stderr)
                 else:
-                    cprint(f"[NOT VULNERABLE] {payload_url}", "green", file=sys.stderr)
+                    cprint(
+                        f"[NOT VULNERABLE XSS] {payload_url}", "red", file=sys.stderr
+                    )
 
         # if VULN_PATHS["xss"][1]:
         #     driver.execute_script("window.open('');")

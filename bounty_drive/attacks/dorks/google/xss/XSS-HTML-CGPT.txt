@@ -448,9 +448,6 @@
 <dialog onmouseup=
 <dir onmousedown=
 <dir onmouseup=
-<dlHere is an expanded list of potential XSS injection points, adding 100 more entries to the previous list. This covers various HTML tags and attributes where user input might be vulnerable to injection attacks:
-
-```txt
 <a href="
 <a onclick=
 <a onmouseover=
@@ -902,9 +899,6 @@
 <dir onmousedown=
 <dir onmouseup=
 <dl onmousedown=
-<dl onmouseupHere's an expanded list of potential XSS injection points, adding 100 new entries to the previous list. This covers various HTML tags and attributes where user input might be vulnerable to injection attacks:
-
-```txt
 <a href="
 <a onclick=
 <a onmouseover=
