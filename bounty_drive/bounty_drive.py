@@ -16,6 +16,8 @@ from attacks.dorks.github_dorking import *
 
 from utils.proxies import setup_proxies
 from utils.app_config import *
+from utils.nord_vpn_config import *
+
 
 from attacks.xss.xss import test_vulnerability_xss
 from attacks.xss.xss_config import *
@@ -196,24 +198,6 @@ def get_user_input():
         )
         or "true"
     )
-    total_output = (
-        input(
-            colored(
-                f"Please specify the total no. of websites you want [default: {DEFAULT_TOTAL_OUTPUT}] \n----> ",
-                "cyan",
-            )
-        )
-        or DEFAULT_TOTAL_OUTPUT
-    )
-    page_no = (
-        input(
-            colored(
-                f"From which Google page you want to start(eg- 1,2,3) [default: {DEFAULT_PAGE_NO}] \n----> ",
-                "cyan",
-            )
-        )
-        or DEFAULT_PAGE_NO
-    )
 
     do_dorking_google = (
         input(
@@ -224,6 +208,32 @@ def get_user_input():
         )
         or "true"
     )
+    do_dorking_google = True if do_dorking_google.lower() == "true" else False
+    total_output = DEFAULT_TOTAL_OUTPUT
+    page_no = DEFAULT_PAGE_NO
+    if do_dorking_google:
+        total_output = (
+            input(
+                colored(
+                    f"Please specify the total no. of websites you want [default: {DEFAULT_TOTAL_OUTPUT}] \n----> ",
+                    "cyan",
+                )
+            )
+            or DEFAULT_TOTAL_OUTPUT
+        )
+        page_no = (
+            input(
+                colored(
+                    f"From which Google page you want to start(eg- 1,2,3) [default: {DEFAULT_PAGE_NO}] \n----> ",
+                    "cyan",
+                )
+            )
+            or DEFAULT_PAGE_NO
+        )
+        # Ensure numeric inputs are correctly converted to integers
+        TOTAL_OUTPUT = int(total_output)
+        PAGE_NO = int(page_no)
+
     do_dorking_github = (
         input(
             colored(
@@ -289,10 +299,6 @@ def get_user_input():
         or "false"
     )
 
-    # Ensure numeric inputs are correctly converted to integers
-    TOTAL_OUTPUT = int(total_output)
-    PAGE_NO = int(page_no)
-    do_dorking_google = True if do_dorking_google.lower() == "true" else False
     do_dorking_github = True if do_dorking_github.lower() == "true" else False
     subdomain = True if subdomain.lower() == "true" else False
     use_proxy = True if use_proxy.lower() == "true" else False
@@ -378,17 +384,19 @@ if __name__ == "__main__":
             # proxies = setup_proxies()
             try:
                 # Read NordVPN logins csv
-                if os.path.exists("proxies/nordvpn_login.csv"):
+                if os.path.exists("proxies/nordvpn_login.csv") and use_vpn:
                     with open("proxies/nordvpn_login.csv", "r") as file:
                         nordvpn = list(csv.reader(file))
-                        username = nordvpn[1][0]
-                        password = nordvpn[1][1]
+                        for i in range(1, len(nordvpn)):
+                            nord_vpn_login.append([nordvpn[i][0], nordvpn[i][1]])
+
                         use_nordvpn = True
                         cprint(
-                            f"You have NordVPN account using these proxies {username} {password}",
+                            f"You have NordVPN account using these proxies {nord_vpn_login}",
                             "green",
                             file=sys.stderr,
                         )
+                    # https://stackoverflow.com/questions/64516109/how-to-use-nordvpn-servers-as-proxy-for-python-requests
                     # TODO: curl -s https://nordvpn.com/api/server | jq -r ".[] | select(.features.socks==true) | [.domain, .name] | @tsv"
                     with open("proxies/nordvpn-proxy-list.txt", "r") as file:
                         proxies = []
@@ -396,7 +404,15 @@ if __name__ == "__main__":
                             cprint(f"Proxy: {line}", "green", file=sys.stderr)
                             line = line.replace("\n", "")
                             # socks5h enable hostname resolution
-                            p = "socks5h://" + username + ":" + password + "@" + line
+                            p = (
+                                "socks5h://"
+                                + "username"
+                                + ":"
+                                + "password"
+                                + "@"
+                                + line
+                                + ":1080"
+                            )
                             proxies.append(p)
                             cprint(f"Proxy: {p}", "green", file=sys.stderr)
                 else:

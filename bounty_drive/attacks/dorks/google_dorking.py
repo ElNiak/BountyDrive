@@ -23,6 +23,7 @@ from utils.app_config import (
     USER_AGENTS,
     use_nordvpn,
 )
+from utils.nord_vpn_config import *
 from utils.proxies import round_robin_proxies
 from utils.request_manager import param_converter, start_request
 from utils.results_manager import safe_add_result
@@ -43,7 +44,7 @@ def google_search_with_proxy(
     advanced=False,
     total_output=TOTAL_OUTPUT,
     generated_dorks=True,
-    secured=True,
+    secured=False,
 ):
     try:
         query, extension, category = dork_tuple
@@ -54,11 +55,15 @@ def google_search_with_proxy(
     base_url = "https://www.google.com/search"
     headers = {
         "User-Agent": random.choice(USER_AGENTS),
-        "Connection": "close",
     }
 
-    if "socks5" in proxy:
+    if "username:password" in proxy:
+        nord_vpn_user_pass = random.choice(nord_vpn_login)
+        proxy = proxy.replace("username", nord_vpn_user_pass[0]).replace(
+            "password", nord_vpn_user_pass[1]
+        )
         proxies = {"https": proxy}
+        secured = True
     else:
         proxies = {"http": proxy, "https": proxy}
 
@@ -284,7 +289,12 @@ def load_google_dorks_and_search(extensions=None, proxies=None):
         }
         for future in tqdm(
             concurrent.futures.as_completed(future_to_search),
-            total=len(future_to_search),
+            total=len(future_to_search)
+            * (
+                1
+                if len(dorking_config.SUBDOMAIN) == 0
+                else len(dorking_config.SUBDOMAIN)
+            ),
             desc="Searching for vulnerable website",
             unit="site",
             # leave=True,

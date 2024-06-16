@@ -17,6 +17,7 @@ from utils.proxies import round_robin_proxies
 from utils.waf_mitigation import waf_detector
 from utils.app_config import POTENTIAL_PATHS, USER_AGENTS, VULN_PATHS
 from utils.request_manager import inject_params, inject_payload
+from utils.nord_vpn_config import *
 
 try:
     from selenium import webdriver
@@ -101,10 +102,14 @@ def generate_xss_urls(url):
     starting_strings = ["", "crlfsuite", "?crlfsuite=", "#", "__session_start__/"]
 
     if is_param:
+        cprint(f"URL parameters: {url}", color="yellow", file=sys.stderr)
         del starting_strings[2]
         for string in starting_strings:
             for each_escape in escape_chars:
                 injected_urls = inject_params(url, string + each_escape + injection)
+                cprint(
+                    f"Injected URLs: {injected_urls}", color="yellow", file=sys.stderr
+                )
                 for each_injected_url in injected_urls:
                     parsed_urls.add(each_injected_url)
 
@@ -113,6 +118,7 @@ def generate_xss_urls(url):
             for injected in _injected:
                 parsed_urls.add(injected)
     else:
+        cprint(f"URL non parameters: {url}", color="yellow", file=sys.stderr)
         if not url.endswith("/"):
             url = url + "/"
         else:
@@ -121,6 +127,7 @@ def generate_xss_urls(url):
             for each_escape in escape_chars:
                 parsed_urls.add(url + string + each_escape + injection)
         for payload in xss_payloads:
+            cprint(f"Payload: {payload}", color="yellow", file=sys.stderr)
             parsed_urls.add(url + payload)
     total_len = len(parsed_urls)
 
@@ -129,8 +136,11 @@ def generate_xss_urls(url):
 
 def test_xss_target(url, proxy):
     total_parsed_targets = []
-    cprint("Intializing Payload Generator...", color="yellow", file=sys.stderr)
+    cprint(
+        f"Intializing Payload Generator for url {url}", color="yellow", file=sys.stderr
+    )
     parsed_target = generate_xss_urls(url)
+    cprint(f"Generated {parsed_target[1]} payloads", color="yellow", file=sys.stderr)
     for each in parsed_target[0]:
         total_parsed_targets.append(each)
 
@@ -160,7 +170,6 @@ def test_vulnerability_xss(proxies):
         # driver = webdriver.Chrome(service=s)
 
         new_urls = []
-        headers = {"User-Agent": random.choice(USER_AGENTS)}
 
         lock = threading.Lock()
 
@@ -176,21 +185,40 @@ def test_vulnerability_xss(proxies):
         ) as executor:
             future_to_search = {
                 executor.submit(
-                    scrape_links_from_url, task["website"], task["proxy"], headers
+                    scrape_links_from_url, task["website"], task["proxy"]
                 ): task
                 for task in search_tasks_with_proxy
             }
             for website in tqdm(
                 concurrent.futures.as_completed(future_to_search),
-                desc=f"Upating links DB for {website}",
+                desc=f"Upating links DB for xss website",
                 unit="site",
+                total=len(future_to_search),
             ):
                 with lock:
                     new_urls += website.result()
 
+        cprint(f"Found {len(new_urls)} new links", color="green", file=sys.stderr)
+
         # crawl the website for more links TODO
 
         POTENTIAL_PATHS["xss"][1] += new_urls
+
+        POTENTIAL_PATHS["xss"][1] = list(set(POTENTIAL_PATHS["xss"][1]))
+
+        cprint(
+            f"Total links: {len(POTENTIAL_PATHS['xss'][1])}",
+            color="green",
+            file=sys.stderr,
+        )
+
+        with open(POTENTIAL_PATHS["xss"][0], "r") as file:  # Open file in append mode
+            writen_urls = file.readlines()
+
+        with open(POTENTIAL_PATHS["xss"][0], "a") as file:
+            for url in POTENTIAL_PATHS["xss"][1]:
+                if url not in writen_urls:
+                    file.write(url + "\n")
 
         # Now, append a proxy to each task
         number_of_worker = len(proxies)
@@ -208,8 +236,9 @@ def test_vulnerability_xss(proxies):
             }
             for website in tqdm(
                 concurrent.futures.as_completed(future_to_search),
-                desc=f"Testing for XSS for {website}",
+                desc=f"Testing for XSS",
                 unit="site",
+                total=len(future_to_search),
             ):
                 result, payload_url = website.result()
                 if result:

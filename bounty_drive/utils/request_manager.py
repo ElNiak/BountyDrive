@@ -178,7 +178,13 @@ def start_request(
                 )
                 time.sleep(WAF_DELAY)
         else:
-            if scrap_urls:
+            if "did not match any documents" in response.text:
+                cprint(
+                    f"No results found for {full_query} with proxy {proxies}",
+                    "yellow",
+                    file=sys.stderr,
+                )
+            elif scrap_urls:
                 urls = []
                 soup = BeautifulSoup(response.text, "html.parser")
                 result_block = soup.find_all("div", attrs={"class": "g"})
@@ -189,7 +195,7 @@ def start_request(
                 )
                 if len(result_block) == 0:
                     cprint(
-                        f"No results found for {full_query} with proxy {proxies}\nTrying new parsing method",
+                        f"No results found for {full_query} with proxy {proxies}\n{response.text}\nTrying new parsing method",
                         "yellow",
                         file=sys.stderr,
                     )
@@ -203,6 +209,7 @@ def start_request(
                             url_match = re.search(r"(https?://[^&]+)", href)
                             if url_match:
                                 url = url_match.group(0)
+                                print(url)
                                 # Extract the title (text within <div> with specific class)
                                 title_tag = a_tag.find("h3") or a_tag.find(
                                     "div", class_="BNeawe vvjwJb AP7Wnd UwRFLe"
@@ -248,7 +255,7 @@ def start_request(
                 )
 
         # Placeholder for URL extraction logic
-        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
+        delay = random.uniform(CURRENT_DELAY - 5, CURRENT_DELAY + 5)
         time.sleep(delay)  # Wait before retrying
         return urls  # Return the category and a placeholder result
     except requests.exceptions.ProxyError as e:

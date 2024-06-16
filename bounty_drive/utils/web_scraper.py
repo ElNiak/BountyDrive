@@ -1,10 +1,24 @@
 import os
+import random
+import re
+import sys
+import time
 from urllib.parse import urljoin
 import requests
 
 # web_scraper.py
 import requests
 from bs4 import BeautifulSoup
+from termcolor import cprint
+from utils.nord_vpn_config import *
+from utils.app_config import CURRENT_DELAY, REQUEST_DELAY, USER_AGENTS
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 
 def fetch_html_content(url, proxy=None, headers=None):
@@ -18,11 +32,46 @@ def fetch_html_content(url, proxy=None, headers=None):
         str: HTML content of the page or None if request fails.
     """
     try:
-        response = requests.get(url, proxies=proxy, headers=headers, verify=False)
-        response.raise_for_status()
+        cprint(f"Fetching {url}", color="yellow", file=sys.stderr)
+        if "username:password" in proxy:
+            nord_vpn_user_pass = random.choice(nord_vpn_login)
+            proxy = proxy.replace("username", nord_vpn_user_pass[0]).replace(
+                "password", nord_vpn_user_pass[1]
+            )
+            proxies = {"https": proxy}
+            secured = True
+        else:
+            proxies = {"http": proxy, "https": proxy}
+        headers = {"User-Agent": random.choice(USER_AGENTS)}
+        response = requests.Session().get(
+            url,
+            proxies=proxies,
+            headers=headers,
+            verify=secured,
+            allow_redirects=True,
+            timeout=REQUEST_DELAY,
+        )
+        delay = random.uniform(CURRENT_DELAY - 5, CURRENT_DELAY + 5)
+        time.sleep(delay)  # Wait before retrying
         return response.text
+    except requests.exceptions.ProxyError as e:
+        cprint(
+            f"ProxyError searching for {url} with proxy {proxies}: {e}",
+            "red",
+            file=sys.stderr,
+        )
+        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
+        time.sleep(delay)  # Wait before retrying
+        # TODO add backoff timer for delay ?
+        return None
     except requests.exceptions.RequestException as e:
-        print(f"Failed to fetch the URL: {e}")
+        cprint(
+            f"RequestException searching for {url} with proxy {proxies}: {e}",
+            "red",
+            file=sys.stderr,
+        )
+        delay = random.uniform(CURRENT_DELAY - 5, CURRENT_DELAY + 5)
+        time.sleep(delay)  # Wait before retrying
         return None
 
 
@@ -54,18 +103,40 @@ def extract_links(html_content, base_url):
 
     # Handle common JavaScript redirection patterns
     for script in soup.find_all("script"):
-        script_content = script.string
-        if script_content and "window.location" in script_content:
-            parts = script_content.split("window.location")
-            for part in parts[1:]:
-                url_start = part.find("=") + 1
-                url_end = part.find(";")
-                if url_start > 0 and url_end > 0:
-                    js_url = part[url_start:url_end].strip().strip("'\"")
-                    link = urljoin(base_url, js_url)
-                    links.append(link)
+        if script.string:
+            js_urls = re.findall(
+                r"window\.location\.href\s*=\s*['\"](.*?)['\"]", script.string
+            )
+            for js_url in js_urls:
+                link = urljoin(base_url, js_url)
+                links.append(link)
 
+    print(f"Extracted {len(links)} links from {base_url}", file=sys.stderr)
     return links
+
+
+def render_js_and_extract_links(url, html_content_get):
+    """
+    Use Selenium to render JavaScript and extract links.
+
+    Args:
+        url (str): URL of the page to scrape.
+
+    Returns:
+        list: List of absolute URLs found in the rendered HTML.
+    """
+    cprint(f"Rendering JavaScript for {url}", color="yellow", file=sys.stderr)
+    options = Options()
+    options.headless = True
+    # service=Service('/path/to/chromedriver'),
+    driver = webdriver.Chrome(options=options)
+    driver.get(url)
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.TAG_NAME, "body"))
+    )
+    html_content = driver.page_source
+    driver.quit()
+    return extract_links(html_content, url) + extract_links(html_content_get, url)
 
 
 def scrape_links_from_url(url, proxy=None, headers=None):
@@ -78,9 +149,11 @@ def scrape_links_from_url(url, proxy=None, headers=None):
     Returns:
         list: List of URLs found in the page.
     """
+
+    cprint(f"Scraping links from {url}", color="yellow", file=sys.stderr)
     html_content = fetch_html_content(url, proxy=proxy, headers=headers)
     if html_content:
-        return extract_links(html_content, url)
+        return render_js_and_extract_links(url, html_content)
     return []
 
 
