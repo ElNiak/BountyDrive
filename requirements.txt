@@ -6,3 +6,4 @@ webdriver_manager
 sqlmap
 eventlet
 free-proxy
+selenium-wire

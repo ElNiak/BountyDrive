@@ -6,147 +6,174 @@
 import glob
 import random
 import threading
-import time
+import requests
 from tqdm import tqdm
 import sys
 import re
 import concurrent.futures
 from termcolor import cprint
 
-from attacks.dorks.dorking_config import dorking_config
 from utils.app_config import (
-    DEFAULT_TOTAL_OUTPUT,
-    EXTENSION,
-    LANG,
-    POTENTIAL_PATHS,
-    TOTAL_OUTPUT,
     USER_AGENTS,
-    use_nordvpn,
 )
-from utils.nord_vpn_config import *
-from utils.proxies import round_robin_proxies
+
+from utils.web_scraper import parse_google_search_results, render_js_and_get_text
+
+from utils.proxies_manager import prepare_proxies, round_robin_proxies
 from utils.request_manager import param_converter, start_request
-from utils.results_manager import safe_add_result
+from utils.results_manager import get_processed_dorks, safe_add_result
 
-from nordvpn_switcher.nordvpn_switch import initialize_VPN, rotate_VPN, terminate_VPN
-
-
-def change_vpn(time=300):
-    rotate_VPN()
-    time.sleep(time)
+dork_id_lock = threading.Lock()
 
 
 def google_search_with_proxy(
-    dork_tuple,
+    dork_query,
     proxy,
     category,
+    config,
+    domain,
     retries=1,
     advanced=False,
-    total_output=TOTAL_OUTPUT,
-    generated_dorks=True,
-    secured=False,
+    dork_id=0,
 ):
-    try:
-        query, extension, category = dork_tuple
-    except ValueError:
-        query = dork_tuple
-        extension = ""
 
-    base_url = "https://www.google.com/search"
-    headers = {
-        "User-Agent": random.choice(USER_AGENTS),
+    if not config:
+        raise Exception("Config file should be provided")
+
+    proxies = prepare_proxies(proxy, config)
+
+    full_query = generate_dork_query(dork_query, config, domain)
+
+    params = prepare_params(config)
+
+    dork_id = perform_searches(
+        full_query,
+        proxies,
+        category,
+        params,
+        retries,
+        config,
+        advanced,
+        dork_id,
+        use_session=not (proxy == None),
+    )
+
+    return dork_id
+
+
+def prepare_params(config):
+    return {
+        "client": "ubuntu-sn",
+        "channel": "fs",
+        "num": config["total_output"],
+        "hl": config["lang"],
     }
 
-    if "username:password" in proxy:
-        nord_vpn_user_pass = random.choice(nord_vpn_login)
-        proxy = proxy.replace("username", nord_vpn_user_pass[0]).replace(
-            "password", nord_vpn_user_pass[1]
-        )
-        proxies = {"https": proxy}
-        secured = True
-    else:
-        proxies = {"http": proxy, "https": proxy}
 
-    if generated_dorks:
-        full_query = generate_dork_query(query, extension)
-    else:
-        full_query = query
+def perform_searches(
+    full_query,
+    proxies,
+    category,
+    params,
+    retries,
+    config,
+    advanced,
+    dork_id,
+    use_session,
+):
 
-    if isinstance(full_query, list):
-        for q in full_query:
-            # Threat data as path
-            is_json = False
-            # url = param_converter(data, url) # TODO
-            data = None
-            GET, POST = True, False
-            params = {
-                # "client": "ubuntu-sn",
-                # "channel": "fs",
-                "q": q,
-                "num": total_output,  # Prevents multiple requests
-                "hl": LANG,
-            }
+    params["q"] = full_query
+    dork_id = execute_search_with_retries(
+        full_query,
+        proxies,
+        category,
+        params,
+        retries,
+        config,
+        advanced,
+        dork_id,
+        use_session=use_session,
+    )
 
-            urls = None
-            for retry_no in range(retries):
-                urls = start_request(
+    return dork_id
+
+
+def execute_search_with_retries(
+    query,
+    proxies,
+    category,
+    params,
+    retries,
+    config,
+    advanced,
+    dork_id,
+    use_session=False,
+):
+    base_url = "https://www.google.com/search"
+    headers = {"User-Agent": random.choice(USER_AGENTS)}
+    for retry_no in range(retries):
+        if use_session:
+            cprint(
+                f"Searching for GET - Session (n° {retry_no}): {base_url} \n\t - parameters {params} \n\t - headers {headers} \n\t - {category} - with proxy {proxies} ...",
+                "yellow",
+                file=sys.stderr,
+            )
+            with requests.Session() as session:
+                response = start_request(
+                    config=config,
                     proxies=proxies,
-                    advanced=advanced,
-                    GET=GET,
-                    data=data,
+                    base_url=base_url,
+                    GET=True,
                     headers=headers,
                     params=params,
-                    base_url=base_url,
-                    full_query=q,
-                    is_json=is_json,
-                    category=category,
-                    scrap_urls=True,
-                    retry_no=retry_no,
-                    secured=secured,
+                    is_json=False,
+                    secured=True if "socks" in proxies["https"] else False,
+                    session=session,
+                    cookies={
+                        "CONSENT": "PENDING+987",
+                        "SOCS": "CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg",
+                    },
                 )
-                if urls:
-                    result = category, urls, q
-                    safe_add_result(result)
-        return
-    else:
-        # Threat data as path
-        is_json = False
-        # url = param_converter(data, url) # TODO
-        data = None
-        GET, POST = True, False
-        params = {
-            # "client": "ubuntu-sn",
-            # "channel": "fs",
-            "q": full_query,
-            "num": total_output,  # Prevents multiple requests
-            "hl": LANG,
-        }
-
-        urls = None
-        for retry_no in range(retries):
-            urls = start_request(
+        else:
+            cprint(
+                f"Searching for GET (n° {retry_no}): {base_url} \n\t - parameters {params} \n\t - headers {headers} \n\t - {category} - with proxy {proxies} ...",
+                "yellow",
+                file=sys.stderr,
+            )
+            response = start_request(
+                config=config,
                 proxies=proxies,
-                advanced=advanced,
-                GET=GET,
-                data=data,
+                base_url=base_url,
+                GET=True,
                 headers=headers,
                 params=params,
-                base_url=base_url,
-                full_query=full_query,
-                is_json=is_json,
-                category=category,
-                scrap_urls=True,
-                retry_no=retry_no,
-                secured=secured,
+                is_json=False,
+                secured=True if "socks" in proxies["https"] else False,
+                cookies={
+                    "CONSENT": "PENDING+987",
+                    "SOCS": "CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg",
+                },
             )
-            if urls:
-                result = category, urls, full_query
-                safe_add_result(result)
-                return
-
-    result = category, urls, full_query
-    safe_add_result(result)
-    return
+        if response:
+            urls = parse_google_search_results(proxies, advanced, query, response.text)
+            if not urls or len(urls) == 0:
+                cprint(
+                    f"Parsing for google search failed for {query} - retrying with selenium...",
+                    "red",
+                    file=sys.stderr,
+                )
+                html_content = render_js_and_get_text(
+                    param_converter(params, url=base_url)
+                )
+                urls = parse_google_search_results(
+                    proxies, advanced, query, html_content
+                )
+            result = dork_id, category, urls, query
+            safe_add_result(result, config)
+            with dork_id_lock:
+                dork_id += 1
+    # TODO to be faster also record non functionnal dork
+    return dork_id
 
 
 google_dork_tags = [
@@ -184,51 +211,140 @@ google_dork_tags = [
 ]
 
 
-def generate_dork_query(query, extension):
+def generate_dork_query(query, config, domain):
     # Clean up the query by removing existing inurl: and intext: tags
-    for tag in ["inurl:", "intext:"]:
-        query = query.replace(tag, "")
+    if len(query) > 0:
+        for tag in ["inurl:", "intext:"]:
+            query = query.replace(tag, "")
 
-    # Ensure the query is properly enclosed in quotes if it contains quotes
-    # if '"' in query:
-    if not query.startswith('"'):
-        query = '"' + query
-    if not query.endswith('"'):
-        query = query + '"'
+        # Ensure the query is properly enclosed in quotes if it contains quotes
+        # if '"' in query:
+        if not query.startswith('"'):
+            query = '"' + query
+        if not query.endswith('"'):
+            query = query + '"'
 
-    in_url_query = "inurl:" + query
-    in_text_query = "intext:" + query
+        in_url_query = "inurl:" + query
+        in_text_query = "intext:" + query
 
-    query = in_url_query + " | " + in_text_query
+        query = in_url_query + " | " + in_text_query
 
-    query = query + " | "  # + "inurl:&"
+        query = query  # + " | "  # + "inurl:&"
 
     # Incorporate subdomain into the search query if specified
-    if len(dorking_config.SUBDOMAIN) > 0:
+    if domain:
         # Remove any existing site: tag and its value
         full_query = []
         query = re.sub(r"site:[^\s]+", "", query)
-        for domain in dorking_config.SUBDOMAIN:
-            to_search = f"site:{domain}"
-        full_query.append(f"({to_search}) & ({query})".strip())
+        to_search = f"site:{domain}"
+        if len(query) > 0:
+            full_query = f"({to_search}) & ({query})".strip()
+        else:
+            full_query = f"({to_search})".strip()
     else:
         full_query = f"({query})".strip()
 
-    if extension and len(extension) > 0:
-        if isinstance(extension, full_query):
-            full_query_copy = []
-            for q in full_query:
-                q = q + f" & filetype:{q}"
-                full_query_copy.append(q)
-            full_query = full_query_copy
-        else:
-            full_query = full_query + f" & filetype:{extension}"
+    if config["extension"] and len(config["extension"]) > 0:
+        full_query = full_query + f" & filetype:{config['extension']}"
 
     return full_query  # Indicate failure after retries
 
 
-def load_google_dorks_and_search(extensions=None, proxies=None):
-    if proxies and len(proxies) < 1:
+def filter_search_tasks(search_tasks, processed_dorks):
+    """
+    Filters out the already processed dorks from search tasks.
+    """
+    filtered_tasks = {}
+    for category, dorks in search_tasks.items():
+        filtered_tasks[category] = [
+            dork for dork in dorks if dork not in processed_dorks
+        ]
+    return filtered_tasks
+
+
+def load_google_dorks_and_search(config, categories):
+    proxies, proxy_cycle = get_proxies_and_cycle(config)
+
+    search_tasks = {}
+
+    for category in categories:
+        search_tasks[category] = []
+        dork_files = glob.glob(f"attacks/dorks/google/{category}/*.txt", recursive=True)
+        for dork_file in dork_files:
+            with open(dork_file, "r") as file:
+                lines = file.readlines()
+                dorks = [line.strip() for line in lines]
+            search_tasks[category] += dorks
+
+    cprint(
+        f"Total number of dorks: {sum([len(search_tasks[task]) for task in search_tasks])}",
+        "yellow",
+        file=sys.stderr,
+    )
+    processed_dorks = get_processed_dorks(config)
+    search_tasks = filter_search_tasks(search_tasks, processed_dorks)
+    cprint(
+        f"Number of dorks to process: {sum([len(search_tasks[task]) for task in search_tasks])}",
+        "yellow",
+        file=sys.stderr,
+    )
+
+    if not search_tasks:
+        cprint(f"No dorks to process.", "red", file=sys.stderr)
+        return
+
+    if config["use_vpn"]:
+        raise NotImplementedError(
+            "VPN is not supported in this version - Error in library"
+        )
+        thread = threading.Thread(target=change_vpn)
+        thread.start()
+
+    number_of_worker = min(len(proxies), 30)
+    cprint(f"Number of workers: {number_of_worker}", "yellow", file=sys.stderr)
+
+    search_tasks_with_proxy = []
+    for task in search_tasks:
+        for domain in config["subdomain"]:
+            for dork in search_tasks[task]:
+                proxy = next(proxy_cycle)
+                search_tasks_with_proxy.append(
+                    {"dork": dork, "proxy": proxy, "category": task, "domain": domain}
+                )
+    cprint(
+        f"Total number of dorks: {len(search_tasks_with_proxy)}",
+        "yellow",
+        file=sys.stderr,
+    )
+
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=number_of_worker
+    ) as executor:
+        future_to_search = {
+            executor.submit(
+                google_search_with_proxy,
+                task["dork"],
+                task["proxy"],
+                task["category"],
+                config,
+                task["domain"],
+            ): task
+            for task in search_tasks_with_proxy
+        }
+        for future in tqdm(
+            concurrent.futures.as_completed(future_to_search),
+            total=len(future_to_search),
+            desc="Searching for vulnerable website",
+            unit="site",
+        ):
+            # task = future_to_search[future]
+            # try:
+            future.result()
+
+
+def get_proxies_and_cycle(config):
+    proxies = config["proxies"]
+    if config["use_proxy"] and len(proxies) == 0:
         cprint(
             f"Using proxies -> you should have at least one UP",
             "red",
@@ -236,68 +352,12 @@ def load_google_dorks_and_search(extensions=None, proxies=None):
         )
         exit()
 
+    if not config["use_proxy"]:
+        proxies = [None]
+
     proxy_cycle = round_robin_proxies(proxies)
-
-    search_tasks = {}
-    for cate in POTENTIAL_PATHS.keys():
-        search_tasks[cate] = []
-
-    category_mapping = search_tasks.keys()
-    for category in category_mapping:
-        dork_files = glob.glob(f"attacks/dorks/google/{category}/*.txt", recursive=True)
-        for dork_file in dork_files:
-            with open(dork_file, "r") as file:
-                lines = file.readlines()
-                dorks = [(line.strip(), EXTENSION, category) for line in lines]
-            # Separate tasks by category before shuffling
-            # if len(search_tasks[category]) == 0:
-            search_tasks[category] += dorks
-            # else:
-            #     search_tasks[category][0][0].append(dorks[0][0]) # TODO cla
-
-    # Now shuffle the dorks within each category
-    search_tasks_fill = []
-    for cat in search_tasks:
-        random.shuffle(search_tasks[cat])
-        for elem in search_tasks[cat]:
-            search_tasks_fill.append((elem, cat))
-
-    cprint(
-        f"Total number of dorks: {len(search_tasks_fill)}", "yellow", file=sys.stderr
-    )
-
-    if use_nordvpn:
-        thread = threading.Thread(target=change_vpn)
-        thread.start()
-
-    # Now, append a proxy to each task
-    number_of_worker = min(len(proxies), 30)  # /2
-    cprint(f"Number of workers: {number_of_worker}", "yellow", file=sys.stderr)
-    search_tasks_with_proxy = []
-    for task, cat in search_tasks_fill:
-        proxy = next(proxy_cycle)
-        search_tasks_with_proxy.append({"dork": task, "proxy": proxy, "category": cat})
-
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=number_of_worker
-    ) as executor:
-        future_to_search = {
-            executor.submit(
-                google_search_with_proxy, task["dork"], task["proxy"], task["category"]
-            ): task
-            for task in search_tasks_with_proxy
-        }
-        for future in tqdm(
-            concurrent.futures.as_completed(future_to_search),
-            total=len(future_to_search)
-            * (
-                1
-                if len(dorking_config.SUBDOMAIN) == 0
-                else len(dorking_config.SUBDOMAIN)
-            ),
-            desc="Searching for vulnerable website",
-            unit="site",
-            # leave=True,
-            # position=0,
-        ):
-            future.result()
+    return proxies, proxy_cycle
+    # update_csv(config["experiment_file_path"], task, success=True)
+    # except Exception as e:
+    #     cprint(f"Error processing {task['dork']}: {e}", "red", file=sys.stderr)
+    #     # update_csv(config["experiment_file_path"], task, success=False)

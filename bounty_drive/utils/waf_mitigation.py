@@ -5,25 +5,33 @@
 # from https://github.com/s0md3v/XSStrike/blob/master/core/wafDetector.py
 import glob
 import json
+import random
 import re
 import eventlet, requests
 from termcolor import cprint
 
+from utils.app_config import USER_AGENTS
 from utils.request_manager import start_request
 
-# from bounty_drive.attacks.xss.xss_config import XSS_TEST_PAYLOAD
+# from attacks.xss.xss_config import XSS_TEST_PAYLOAD
 
 
-def waf_detector(proxies, url, params, headers, GET, mode="xss"):
+def waf_detector(proxies, url, mode="xss"):
     # a payload which is noisy enough to provoke the WAF
     if mode == "xss":
-        noise = XSS_TEST_PAYLOAD
+        noise = "<script>alert(1)</script>"
     else:
         noise = "../../../etc/passwd"
+
+    params = {}
     params["xss"] = noise
+    headers = {
+        "User-Agent": random.choice(USER_AGENTS),
+        "X-HackerOne-Research": "elniak",
+    }
     # Opens the noise injected payload
     response = start_request(
-        proxies=proxies, url=url, params=params, headers=headers, GET=GET
+        proxies=proxies, url=url, params=params, headers=headers, GET=True
     )
     page = response.text
     code = str(response.status_code)

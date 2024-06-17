@@ -8,14 +8,14 @@
 /index.php?view=help&faq=1&ref=
 /info.asp?page=fullstory&amp;key=1&amp;news_type=news&amp;onvan=
 /info.asp?page=fullstory&key=1&news_type=news&onvan=
-/main.php?sid= /main.php?sid=
-/news.php?id= /news.php?id=
-/notice.php?msg= /notice.php?msg=
+/main.php?sid= 
+/news.php?id=
+/notice.php?msg= 
 /preaspjobboard//Employee/emp_login.asp?msg1=
 /schoolmv2/html/studentmain.php?session=
 /search.php?search_keywords= /search.php?search_keywords=
-/ser/parohija.php?id= /ser/parohija.php?id=
-/showproperty.php?id= /showproperty.php?id=
+/ser/parohija.php?id= 
+/showproperty.php?id= 
 /site_search.php?sfunction= /site_search.php?sfunction=
 /strane/pas.php?id= /strane/pas.php?id=
 /vehicle/buy_do_search/?order_direction=

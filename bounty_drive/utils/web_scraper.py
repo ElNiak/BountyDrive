@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import re
@@ -10,18 +11,113 @@ import requests
 import requests
 from bs4 import BeautifulSoup
 from termcolor import cprint
-from utils.nord_vpn_config import *
-from utils.app_config import CURRENT_DELAY, REQUEST_DELAY, USER_AGENTS
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from utils.app_config import USER_AGENTS
+
+try:
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+except ImportError:
+    cprint(
+        "Selenium is not installed. Please install it using 'pip install selenium'.",
+        "red",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 
-def fetch_html_content(url, proxy=None, headers=None):
+class SearchResult:
+    def __init__(self, url, title, description):
+        self.url = url
+        self.title = title
+        self.description = description
+
+    def __repr__(self):
+        return f"SearchResult(url={self.url}, title={self.title}, description={self.description})"
+
+
+def parse_google_search_results(proxies, advanced, full_query, response):
+    """_summary_
+
+    Args:
+        proxies (_type_): _description_
+        advanced (_type_): _description_
+        full_query (_type_): _description_
+        response (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    urls = []
+    soup = BeautifulSoup(response, "html.parser")
+    result_block = soup.find_all("div", attrs={"class": "g"})
+    cprint(
+        f"Potentially {len(result_block)} links ...",
+        "yellow",
+        file=sys.stderr,
+    )
+    if len(result_block) == 0:
+        cprint(
+            f"No results found for parsing of {full_query} with proxy {proxies}\n{response}\nTrying new parsing method",
+            "yellow",
+            file=sys.stderr,
+        )
+        # Locate all <a> tags that contain the search results
+        for a_tag in soup.find_all("a", href=True):
+            # Extract the href attribute
+            href = a_tag["href"]
+            # Only consider hrefs that start with '/url?'
+            if href.startswith("/url?"):
+                # Extract the actual URL using regex
+                url_match = re.search(r"(https?://[^&]+)", href)
+                if url_match:
+                    url = url_match.group(0)
+                    cprint(f"Checking for url: {url}", color="yellow", file=sys.stderr)
+                    # Extract the title (text within <div> with specific class)
+                    title_tag = a_tag.find("h3") or a_tag.find(
+                        "div", class_="BNeawe vvjwJb AP7Wnd UwRFLe"
+                    )
+                    title = title_tag.get_text() if title_tag else None
+                    if title:
+                        cprint(
+                            f"Link appended to potential urls: {url}",
+                            "green",
+                            file=sys.stderr,
+                        )
+                        urls.append(url)
+            else:
+                pass
+    else:
+        for result in result_block:
+            # Find link, title, description
+            link = result.find("a", href=True)
+            title = result.find("h3")
+            description_box = result.find("div", {"style": "-webkit-line-clamp:2"})
+            if description_box:
+                description = description_box.text
+                if link and title and description:
+                    cprint(
+                        f"Link appended to potential urls: {link['href']}",
+                        "green",
+                        file=sys.stderr,
+                    )
+                    if advanced:
+                        urls.append(SearchResult(link["href"], title.text, description))
+                    else:
+                        urls.append(link["href"])
+    cprint(
+        f"Done parsing search results - {len(urls)} potential new links",
+        "green",
+        file=sys.stderr,
+    )
+    return urls
+
+
+def fetch_html_content(url, config, proxy=None, headers=None):
     """
     Fetch the HTML content of a given URL.
 
@@ -33,8 +129,9 @@ def fetch_html_content(url, proxy=None, headers=None):
     """
     try:
         cprint(f"Fetching {url}", color="yellow", file=sys.stderr)
-        if "username:password" in proxy:
-            nord_vpn_user_pass = random.choice(nord_vpn_login)
+        if proxy and "username:password" in proxy:
+            print(f"logins :{json.loads(config['nord_vpn_login'])}")
+            nord_vpn_user_pass = random.choice(json.loads(config["nord_vpn_login"]))
             proxy = proxy.replace("username", nord_vpn_user_pass[0]).replace(
                 "password", nord_vpn_user_pass[1]
             )
@@ -42,16 +139,19 @@ def fetch_html_content(url, proxy=None, headers=None):
             secured = True
         else:
             proxies = {"http": proxy, "https": proxy}
-        headers = {"User-Agent": random.choice(USER_AGENTS)}
+        headers = {
+            "User-Agent": random.choice(USER_AGENTS),
+            "X-HackerOne-Research": "elniak",
+        }
         response = requests.Session().get(
             url,
             proxies=proxies,
             headers=headers,
             verify=secured,
             allow_redirects=True,
-            timeout=REQUEST_DELAY,
+            timeout=config["request_delay"],
         )
-        delay = random.uniform(CURRENT_DELAY - 5, CURRENT_DELAY + 5)
+        delay = random.uniform(config["current_delay"] - 5, config["current_delay"] + 5)
         time.sleep(delay)  # Wait before retrying
         return response.text
     except requests.exceptions.ProxyError as e:
@@ -60,7 +160,7 @@ def fetch_html_content(url, proxy=None, headers=None):
             "red",
             file=sys.stderr,
         )
-        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
+        delay = random.uniform(config["current_delay"] - 2, config["current_delay"] + 2)
         time.sleep(delay)  # Wait before retrying
         # TODO add backoff timer for delay ?
         return None
@@ -70,7 +170,7 @@ def fetch_html_content(url, proxy=None, headers=None):
             "red",
             file=sys.stderr,
         )
-        delay = random.uniform(CURRENT_DELAY - 5, CURRENT_DELAY + 5)
+        delay = random.uniform(config["current_delay"] - 5, config["current_delay"] + 5)
         time.sleep(delay)  # Wait before retrying
         return None
 
@@ -115,7 +215,7 @@ def extract_links(html_content, base_url):
     return links
 
 
-def render_js_and_extract_links(url, html_content_get):
+def render_js_and_get_text(url, proxy=None):
     """
     Use Selenium to render JavaScript and extract links.
 
@@ -126,16 +226,55 @@ def render_js_and_extract_links(url, html_content_get):
         list: List of absolute URLs found in the rendered HTML.
     """
     cprint(f"Rendering JavaScript for {url}", color="yellow", file=sys.stderr)
-    options = Options()
-    options.headless = True
-    # service=Service('/path/to/chromedriver'),
-    driver = webdriver.Chrome(options=options)
-    driver.get(url)
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.TAG_NAME, "body"))
-    )
-    html_content = driver.page_source
-    driver.quit()
+    try:
+        options = Options()
+        options.headless = True
+        if proxy:
+            options.add_argument(f"--proxy-server={proxy}")
+        # service=Service('/path/to/chromedriver'),
+        driver = webdriver.Chrome(options=options)
+        driver.get(url)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        html_content = driver.page_source
+        driver.quit()
+    except Exception as e:
+        cprint(f"Error rendering JS for {url}: {e}", color="red", file=sys.stderr)
+        # return []
+        html_content = ""
+    finally:
+        return html_content
+
+
+def render_js_and_extract_links(url, html_content_get, proxy=None):
+    """
+    Use Selenium to render JavaScript and extract links.
+
+    Args:
+        url (str): URL of the page to scrape.
+
+    Returns:
+        list: List of absolute URLs found in the rendered HTML.
+    """
+    cprint(f"Rendering JavaScript for {url}", color="yellow", file=sys.stderr)
+    try:
+        options = Options()
+        options.headless = True
+        if proxy:
+            options.add_argument(f"--proxy-server={proxy}")
+        # service=Service('/path/to/chromedriver'),
+        driver = webdriver.Chrome(options=options)
+        driver.get(url)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        html_content = driver.page_source
+        driver.quit()
+    except Exception as e:
+        cprint(f"Error rendering JS for {url}: {e}", color="red", file=sys.stderr)
+        # return []
+        html_content = ""
     return extract_links(html_content, url) + extract_links(html_content_get, url)
 
 
@@ -153,7 +292,7 @@ def scrape_links_from_url(url, proxy=None, headers=None):
     cprint(f"Scraping links from {url}", color="yellow", file=sys.stderr)
     html_content = fetch_html_content(url, proxy=proxy, headers=headers)
     if html_content:
-        return render_js_and_extract_links(url, html_content)
+        return render_js_and_extract_links(url, html_content, proxy=proxy)
     return []
 
 

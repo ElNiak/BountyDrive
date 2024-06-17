@@ -1,12 +1,12 @@
 # /usr/bin/python3
-import argparse
-import socket
 import sys
-from termcolor import colored, cprint
+from termcolor import cprint
 import os
+import csv
+import concurrent.futures
 
+from tqdm import tqdm
 
-from attacks.dorks.dorking_config import dorking_config
 from attacks.dorks.google_dorking import (
     google_search_with_proxy,
     load_google_dorks_and_search,
@@ -14,10 +14,9 @@ from attacks.dorks.google_dorking import (
 
 from attacks.dorks.github_dorking import *
 
-from utils.proxies import setup_proxies
-from utils.app_config import *
-from utils.nord_vpn_config import *
-
+from utils.results_manager import get_last_processed_ids, get_xss_links
+from utils.proxies_manager import round_robin_proxies, setup_proxies
+from utils.vpn_manager import setup_vpn
 
 from attacks.xss.xss import test_vulnerability_xss
 from attacks.xss.xss_config import *
@@ -29,11 +28,7 @@ from utils.banner import *
 from utils.banner import load_animation
 from utils.logger import *
 
-from fp.fp import FreeProxy, FreeProxyException
-from nordvpn_switcher.nordvpn_switch import initialize_VPN, rotate_VPN, terminate_VPN
-import csv
-
-import utils.logger
+import configparser
 
 os.system("clear")
 
@@ -42,439 +37,268 @@ os.system("clear")
 #########################################################################################
 
 
-def get_user_arguments_input():
+def read_config(file_path):
     """
-    Collect user input for website extension, total output, and starting page number, with default values.
+    Reads the configuration file and returns the settings as a dictionary.
     """
-    parser = argparse.ArgumentParser(
-        description="Collect user input for scanning websites."
+    config = configparser.ConfigParser()
+    config.read(file_path)
+
+    settings = {
+        # Settings
+        "extension": config["Settings"].get("extension"),
+        "subdomain": config["Settings"].getboolean("subdomain"),
+        "do_web_scrap": config["Settings"].getboolean("do_web_scrap"),
+        "target_file": config["Settings"].get("target_file"),
+        "experiment_file_path": config["Settings"].get("experiment_file_path"),
+        # Google Dorking
+        "do_dorking_google": config["GoogleDorking"].getboolean("do_dorking_google"),
+        "total_output": config["GoogleDorking"].getint("total_output"),
+        "page_no": config["GoogleDorking"].getint("page_no"),
+        "default_total_output": config["GoogleDorking"].getint("default_total_output"),
+        "default_page_no": config["GoogleDorking"].getint("default_page_no"),
+        "lang": config["GoogleDorking"].get("lang"),
+        # Github Dorking
+        "do_dorking_github": config["GithubDorking"].getboolean("do_dorking_github"),
+        # XSS
+        "do_xss": config["XSS"].getboolean("do_xss"),
+        "encode_xss": config["XSS"].getboolean("encode_xss"),
+        "fuzz_xss": config["XSS"].getboolean("fuzz_xss"),
+        "blind_xss": config["XSS"].getboolean("blind_xss"),
+        "do_sqli": config["SQLi"].getboolean("do_sqli"),
+        # Proxy
+        "use_proxy": config["Proxy"].getboolean("use_proxy"),
+        "use_free_proxy_file": config["Proxy"].getboolean("use_free_proxy_file"),
+        "use_free_proxy": config["Proxy"].getboolean("use_free_proxy"),
+        "use_nordvpn_proxy": config["Proxy"].getboolean("use_nordvpn_proxy"),
+        "proxies": config["Proxy"].get("proxies"),
+        "proxy_mean_delay": config["Proxy"].getint("proxy_mean_delay"),
+        "proxy_factor": config["Proxy"].getint("proxy_factor"),
+        # VPN
+        "use_vpn": config["VPN"].getboolean("use_vpn"),
+        "use_nordvpn": config["VPN"].getboolean("use_nordvpn"),
+        "nord_vpn_login": config["VPN"].get("nord_vpn_login"),
+        # Search
+        "default_extension": config["Search"].get("default_extension"),
+        "search_extension": config["Search"].get("extension"),
+        "recursive": config["Search"].getboolean("recursive"),
+        # Delay
+        "initial_delay": config["Delay"].getint("initial_delay"),
+        "delay_factor": config["Delay"].getint("delay_factor"),
+        "long_delay": config["Delay"].getint("long_delay"),
+        "max_delay": config["Delay"].getint("max_delay"),
+        "request_delay": config["Delay"].getint("request_delay"),
+        "waf_delay": config["Delay"].getint("waf_delay"),
+        # Rate
+        "rate_per_minute": config["Rate"].getint("rate_per_minute"),
+        "current_delay": config["Rate"].getint("current_delay"),
+    }
+
+    return settings
+
+
+def get_user_input(config_file="configs/config.ini"):
+    """
+    Collect user input from configuration file.
+    """
+    config = read_config(config_file)
+
+    categories = []
+
+    # Define headers based on enabled parameters
+    setup_csv(config, categories)
+
+    cprint(
+        f"-Extension: {config['extension']}\n-Total Output: {config['total_output']}\n-Page No: {config['page_no']}\n-Do Google Dorking: {config['do_dorking_google']}\n-Do Github Dorking {config['do_dorking_github']}\n-Do XSS: {config['do_xss']}\n-Do SQLi: {config['do_sqli']},\n Domain: {config['subdomain']}\n-Use Proxy: {config['use_proxy']}",
+        "green",
+        file=sys.stderr,
     )
 
-    parser.add_argument(
-        "--use_proxy",
-        type=str,
-        default="true",
-        help="Restrict search to subdomain present in target.txt (default: true)",
-    )
-    parser.add_argument(
-        "--extension",
-        type=str,
-        default=DEFAULT_EXTENSION,
-        help="Website extension (default: .com)",
-    )
-    parser.add_argument(
-        "--subdomain",
-        type=str,
-        default="true",
-        help="Restrict search to subdomain present in target.txt (default: true)",
-    )
-    parser.add_argument(
-        "--total_output",
-        type=int,
-        default=DEFAULT_TOTAL_OUTPUT,
-        help="Total number of websites to scan (default: 10)",
-    )
-    parser.add_argument(
-        "--page_no",
-        type=int,
-        default=DEFAULT_PAGE_NO,
-        help="Starting page number for Google search (default: 1)",
-    )
+    if config["use_proxy"]:
+        setup_proxies(config)
 
-    parser.add_argument(
-        "--do_dorking_google",
-        type=str,
-        default="true",
-        help="Perform Google dorking scan phase (default: true)",
-    )
-    parser.add_argument(
-        "--do_dorking_github",
-        type=str,
-        default="true",
-        help="Perform Github dorking scan phase (default: true)",
-    )
+    if config["use_vpn"]:
+        setup_vpn(config)
 
-    parser.add_argument(
-        "--do_xss",
-        type=str,
-        default="true",
-        help="Test for XSS vulnerability (default: true)",
-    )
-    parser.add_argument(
-        "--do_encode_xss",
-        type=str,
-        default="true",
-        help="Encode XSS payload (default: true)",
-    )
-    parser.add_argument(
-        "--do_fuzzing_xss",
-        type=str,
-        default="true",
-        help="Fuzz XSS payload (default: true)",
-    )
-    parser.add_argument(
-        "--do_blind_xss",
-        type=str,
-        default="true",
-        help="Test blind XSS payload (default: true)",
-    )
+    last_dork_id, last_link_id, last_attack_id = get_last_processed_ids(config)
 
-    parser.add_argument(
-        "--do_sqli",
-        type=str,
-        default="true",
-        help="Test for SQLi vulnerability (default: true)",
-    )
+    if config["subdomain"]:
+        proxies = config["proxies"]
+        if config["use_proxy"] and len(proxies) == 0:
+            cprint(
+                f"Using proxies -> you should have at least one UP",
+                "red",
+                file=sys.stderr,
+            )
+            exit()
 
-    args = parser.parse_args()
+        if not config["use_proxy"]:
+            proxies = [None]
 
-    extension = args.extension
-    subdomain = args.subdomain.lower() == "true"
-    total_output = args.total_output
-    page_no = args.page_no
+        proxy_cycle = round_robin_proxies(proxies)
 
-    do_dorking_google = args.do_dorking_google.lower() == "true"
-    do_dorking_github = args.do_dorking_github.lower() == "true"
+        saved_total_output = config["total_output"]
+        current_total_output = 10
+        config["total_output"] = current_total_output
+        search_tasks_with_proxy = []
 
-    do_xss = args.do_xss.lower() == "true"
-    encode_xss = args.do_encode_xss.lower() == "true"
-    fuzzing_xss = args.do_fuzzing_xss.lower() == "true"
-    blind_xss = args.do_blind_xss.lower() == "true"
+        number_of_worker = min(len(proxies), 30)
+        cprint(f"Number of workers: {number_of_worker}", "yellow", file=sys.stderr)
 
-    do_sqli = args.do_sqli.lower() == "true"
-    use_proxy = args.use_proxy
-
-    if subdomain:
-        with open("target.txt", "r") as file:
+        with open(config["target_file"], "r") as file:
             subdomain_list = file.read().splitlines()
-        cprint(f"Subdomains: {subdomain_list}", "green", file=sys.stderr)
+            if len(subdomain_list) >= last_dork_id:
+                for domain in subdomain_list:
+                    processed = False
+                    for category in categories:
+                        with open(
+                            config["experiment_file_path"], mode="r", newline=""
+                        ) as file:
+                            reader = csv.DictReader(file)
+                            for row in reader:
+                                if domain in row["dork"]:
+                                    processed = True
 
-    cprint(
-        f"Extension: {extension}, Total Output: {total_output}, Page No: {page_no}, Do Google Dorking: {do_dorking_google}, Do Github Dorking {do_dorking_github}",
-        "green",
-        file=sys.stderr,
-    )
+                        if not processed:
+                            proxy = next(proxy_cycle)
+                            search_tasks_with_proxy.append(
+                                {
+                                    "dork": "",
+                                    "proxy": proxy,
+                                    "category": category,
+                                    "domain": domain,
+                                }
+                            )
+                            cprint(
+                                f"Initial Dorking search for based targets {domain} - {category}",
+                                "yellow",
+                                file=sys.stderr,
+                            )
+                        else:
+                            cprint(
+                                f"Already initialized Dorking search for based targets {domain} - {category}",
+                                "yellow",
+                                file=sys.stderr,
+                            )
 
-    return extension, do_dorking_google, do_dorking_github, do_sqli, do_xss, use_proxy
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=number_of_worker
+            ) as executor:
+                future_to_search = {
+                    executor.submit(
+                        google_search_with_proxy,
+                        task["dork"],
+                        task["proxy"],
+                        task["category"],
+                        config,
+                        task["domain"],
+                    ): task
+                    for task in search_tasks_with_proxy
+                }
+                for future in tqdm(
+                    concurrent.futures.as_completed(future_to_search),
+                    total=len(future_to_search),
+                    desc="Initializing Dorking of targets",
+                    unit="site",
+                ):
+                    task = future_to_search[future]
+                    # try:
+                    last_dork_id = future.result()
 
-
-def get_user_input():
-    """
-    Collect user input for website extension, total output, and starting page number, with default values.
-    """
-    use_proxy = (
-        input(
-            colored(
-                f"Do you want to use proxies ? [default: true (vs false)] \n----> ",
-                "cyan",
-            )
-        )
-        or "true"
-    )
-    use_vpn = (
-        input(
-            colored(
-                f"Do you want to use VPN (NordVPN) ? [default: true (vs false)] \n----> ",
-                "cyan",
-            )
-        )
-        or "true"
-    )
-    extension = (
-        input(
-            colored(
-                f"Please specify the website extension(eg- .in,.com,.pk) [default: {DEFAULT_EXTENSION}] \n----> ",
-                "cyan",
-            )
-        )
-        or DEFAULT_EXTENSION
-    )  # TODO
-    subdomain = (
-        input(
-            colored(
-                f"Do you want to restrict search to subdomain present in target.txt ? [default: true (vs false)] \n----> ",
-                "cyan",
-            )
-        )
-        or "true"
-    )
-
-    do_dorking_google = (
-        input(
-            colored(
-                f"Do you want to do the Google dorking scan phase ? [default: true (vs false)] \n----> ",
-                "cyan",
-            )
-        )
-        or "true"
-    )
-    do_dorking_google = True if do_dorking_google.lower() == "true" else False
-    total_output = DEFAULT_TOTAL_OUTPUT
-    page_no = DEFAULT_PAGE_NO
-    if do_dorking_google:
-        total_output = (
-            input(
-                colored(
-                    f"Please specify the total no. of websites you want [default: {DEFAULT_TOTAL_OUTPUT}] \n----> ",
-                    "cyan",
-                )
-            )
-            or DEFAULT_TOTAL_OUTPUT
-        )
-        page_no = (
-            input(
-                colored(
-                    f"From which Google page you want to start(eg- 1,2,3) [default: {DEFAULT_PAGE_NO}] \n----> ",
-                    "cyan",
-                )
-            )
-            or DEFAULT_PAGE_NO
-        )
-        # Ensure numeric inputs are correctly converted to integers
-        TOTAL_OUTPUT = int(total_output)
-        PAGE_NO = int(page_no)
-
-    do_dorking_github = (
-        input(
-            colored(
-                f"Do you want to do the Github dorking scan phase ? [default: false (vs true)] \n----> ",
-                "cyan",
-            )
-        )
-        or "false"
-    )
-
-    do_xss = (
-        input(
-            colored(
-                f"Do you want to test for XSS vulnerability ? [default: true (vs false)] \n----> ",
-                "cyan",
-            )
-        )
-        or "true"
-    )
-    do_xss = True if do_xss.lower() == "true" else False
-    if do_xss:
-        do_encode_xss = (
-            input(
-                colored(
-                    f"Do you want to encode XSS payload ? [default: true (vs false)] \n----> ",
-                    "cyan",
-                )
-            )
-            or "true"
-        )
-        do_fuzzing_xss = (
-            input(
-                colored(
-                    f"Do you want to fuzz XSS payload ? [default: true (vs false)] \n----> ",
-                    "cyan",
-                )
-            )
-            or "true"
-        )
-        do_blind_xss = (
-            input(
-                colored(
-                    f"Do you want to test blind XSS payload ? [default: true (vs false)] \n----> ",
-                    "cyan",
-                )
-            )
-            or "true"
-        )
-        xss_config.ENCODE_XSS = True if do_encode_xss.lower() == "true" else False
-        xss_config.FUZZ_XSS = True if do_fuzzing_xss.lower() == "true" else False
-        xss_config.BLIND_XSS = True if do_blind_xss.lower() == "true" else False
+            config["subdomain"] = subdomain_list
     else:
-        del POTENTIAL_PATHS["xss"]
-        del VULN_PATHS["xss"]
+        config["subdomain"] = [None]
+    config["total_output"] = saved_total_output
 
-    do_sqli = (
-        input(
-            colored(
-                f"Do you want to test for SQLi vulnerability ? [default: false (vs true)] \n----> ",
-                "cyan",
-            )
-        )
-        or "false"
-    )
+    return config, last_dork_id, last_link_id, last_attack_id, categories
 
-    do_dorking_github = True if do_dorking_github.lower() == "true" else False
-    subdomain = True if subdomain.lower() == "true" else False
-    use_proxy = True if use_proxy.lower() == "true" else False
-    use_vpn = True if use_vpn.lower() == "true" else False
-    do_sqli = True if do_sqli.lower() == "true" else False
-    if do_sqli:
-        pass
-    else:
-        del POTENTIAL_PATHS["sqli"]
-        del VULN_PATHS["sqli"]
 
-    if subdomain:
-        with open("target.txt", "r") as file:
-            subdomain = file.read().splitlines()
-        # for domain in subdomain:
-        #     for key, value in VULN_PATHS.items():
-        #         google_search_with_proxy(
-        #             (f"site:{domain}", None, key),
-        #             None,
-        #             key,
-        #             total_output=10,
-        #             generated_dorks=False,
-        #             secured=True
-        #         )
+def setup_csv(config, categories):
+    csv_headers = [
+        "dork_id",
+        "link_id",
+        "attack_id",
+        "category",
+        "url",
+        "dork",
+        "success",
+        "payload",
+    ]
+    if config["do_dorking_github"]:
+        csv_headers.append("github_success")
+    if config["do_sqli"]:
+        sqli_csv = config["experiment_file_path"].replace(".csv", "_sqli.csv")
+        config["sqli_csv"] = sqli_csv
+        if not os.path.exists(sqli_csv) or os.path.getsize(sqli_csv) == 0:
+            with open(sqli_csv, mode="a", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow(csv_headers)
 
-        dorking_config.SUBDOMAIN = subdomain
+        csv_headers.append("sqli_success")
+        categories.append("sqli")
+    if config["do_xss"]:
+        # TODO
+        xss_csv = config["experiment_file_path"].replace(".csv", "_xss.csv")
+        config["xss_csv"] = xss_csv
+        if not os.path.exists(xss_csv) or os.path.getsize(xss_csv) == 0:
+            with open(xss_csv, mode="a", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow(csv_headers)
 
-    cprint(
-        f"Extension: {extension}, Total Output: {total_output}, Page No: {page_no}, Do Google Dorking: {do_dorking_google}, Do Github Dorking {do_dorking_github}, Do XSS: {do_xss}, Do SQLi: {do_sqli},\n Domain: {subdomain}, Use Proxy: {use_proxy}",
-        "green",
-        file=sys.stderr,
-    )
+        csv_headers.append("xss_success")
+        categories.append("xss")
 
-    return (
-        extension,
-        do_dorking_google,
-        do_dorking_github,
-        do_sqli,
-        do_xss,
-        use_proxy,
-        use_vpn,
-    )
+    if (
+        not os.path.exists(config["experiment_file_path"])
+        or os.path.getsize(config["experiment_file_path"]) == 0
+    ):
+        with open(config["experiment_file_path"], mode="a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(csv_headers)
 
 
 if __name__ == "__main__":
     try:
         load_animation()
-        for key, value in VULN_PATHS.items():
-            if not os.path.exists(value[0]):
-                with open(value[0], "w") as file:
-                    file.write("")
-        for key, value in POTENTIAL_PATHS.items():
-            if not os.path.exists(value[0]):
-                with open(value[0], "w") as file:
-                    file.write("")
-                with open(value[0].replace(".txt", "_dork.txt"), "w") as file:
-                    file.write("")
-        if len(sys.argv) > 3:
+
+        if len(sys.argv) == 2:
             (
-                extension,
-                do_dorking_google,
-                do_dorking_github,
-                do_sqli,
-                do_xss,
-                use_proxy,
-            ) = get_user_arguments_input()
-        else:
+                config,
+                last_dork_id,
+                last_link_id,
+                last_attack_id,
+                categories,
+            ) = get_user_input(sys.argv[1])
+        elif len(sys.argv) == 1:
             (
-                extension,
-                do_dorking_google,
-                do_dorking_github,
-                do_sqli,
-                do_xss,
-                use_proxy,
-                use_vpn,
+                config,
+                last_dork_id,
+                last_link_id,
+                last_attack_id,
+                categories,
             ) = get_user_input()
+        else:
+            cprint(
+                "Invalid number of arguments (./bounty_drive.py [config_file_path])",
+                "red",
+                file=sys.stderr,
+            )
+            exit()
 
-        proxies = [None]
-        username = None
-        password = None
-        if use_proxy:
-            # TODO check if proxy alive ?
-            # proxies = setup_proxies()
-            try:
-                # Read NordVPN logins csv
-                if os.path.exists("proxies/nordvpn_login.csv") and use_vpn:
-                    with open("proxies/nordvpn_login.csv", "r") as file:
-                        nordvpn = list(csv.reader(file))
-                        for i in range(1, len(nordvpn)):
-                            nord_vpn_login.append([nordvpn[i][0], nordvpn[i][1]])
-
-                        use_nordvpn = True
-                        cprint(
-                            f"You have NordVPN account using these proxies {nord_vpn_login}",
-                            "green",
-                            file=sys.stderr,
-                        )
-                    # https://stackoverflow.com/questions/64516109/how-to-use-nordvpn-servers-as-proxy-for-python-requests
-                    # TODO: curl -s https://nordvpn.com/api/server | jq -r ".[] | select(.features.socks==true) | [.domain, .name] | @tsv"
-                    with open("proxies/nordvpn-proxy-list.txt", "r") as file:
-                        proxies = []
-                        for line in file.readlines():
-                            cprint(f"Proxy: {line}", "green", file=sys.stderr)
-                            line = line.replace("\n", "")
-                            # socks5h enable hostname resolution
-                            p = (
-                                "socks5h://"
-                                + "username"
-                                + ":"
-                                + "password"
-                                + "@"
-                                + line
-                                + ":1080"
-                            )
-                            proxies.append(p)
-                            cprint(f"Proxy: {p}", "green", file=sys.stderr)
-                else:
-                    cprint("Using free proxies ", "green", file=sys.stderr)
-                    proxies = FreeProxy(
-                        google=None, rand=True, https=True, timeout=10
-                    ).get_proxy_list(repeat=False)
-
-                cprint(
-                    "Number of proxies: " + str(len(proxies)), "green", file=sys.stderr
-                )
-            except FreeProxyException as e:
-                cprint(
-                    f"FreeProxyException: {e}",
-                    "red",
-                    file=sys.stderr,
-                )
-                exit()
-
-        if use_vpn:
-            if username and password:
-                try:
-                    initialize_VPN(save=1, area_input=["complete rotation"])
-                except Exception as e:
-                    cprint(
-                        f"VPN initialization error: {e}",
-                        "red",
-                        file=sys.stderr,
-                    )
-                    # exit()
-                    use_nordvpn = False
-            else:
-                cprint(
-                    "You need to provide NordVPN credentials to use VPN",
-                    "red",
-                    file=sys.stderr,
-                )
-                # exit()
-                use_nordvpn = False
-
-        if do_dorking_google:
+        if config["do_dorking_google"]:
             cprint(
                 "\nStarting Google dorking scan phase...\n", "yellow", file=sys.stderr
             )
-            load_google_dorks_and_search(extension, proxies)
+            load_google_dorks_and_search(config, categories)
 
-        if do_dorking_github:
+        if config["do_dorking_github"]:
             cprint(
                 "\nStarting Github dorking scan phase...\n", "yellow", file=sys.stderr
             )
             raise NotImplementedError("Github dorking scan phase not implemented yet")
-            load_github_dorks_and_search(extension, proxies)
+            load_github_dorks_and_search(config, categories)
 
-        def read_potential_sites():
-            for key, value in POTENTIAL_PATHS.items():
-                with open(value[0], "r") as file:
-                    POTENTIAL_PATHS[key][1] = list(set(file.read().splitlines()))
-
-        # Call the function to initialize the arrays
-        read_potential_sites()
-
-        if do_sqli:
+        if config["do_sqli"]:
             raise NotImplementedError("SQLi phase not implemented yet")
             website_to_test = POTENTIAL_PATHS["sqli"][1]
             cprint(
@@ -488,10 +312,10 @@ if __name__ == "__main__":
                     "red",
                     file=sys.stderr,
                 )
-            test_vulnerability_sqli(proxies)
+            test_vulnerability_sqli(config)
 
-        if do_xss:
-            website_to_test = POTENTIAL_PATHS["xss"][1]
+        if config["do_xss"]:
+            website_to_test = get_xss_links(config)
             cprint(
                 "\nTesting websites for XSS vulnerability...\n",
                 "yellow",
@@ -503,25 +327,26 @@ if __name__ == "__main__":
                     "red",
                     file=sys.stderr,
                 )
-            test_vulnerability_xss(proxies)
+            test_vulnerability_xss(config, website_to_test)
 
         cprint(banner_terminal_res, "green", file=sys.stderr)
 
-        if do_sqli and VULN_PATHS["sqli"][1]:
-            raise NotImplementedError("SQLi phase not implemented yet")
-            cprint(
-                "The following targets are affected with SQLi:", "red", file=sys.stderr
-            )
-            for target in VULN_PATHS["sqli"][1]:
-                cprint(target, "red", file=sys.stderr)
+        # if do_sqli and VULN_PATHS["sqli"][1]:
+        #     raise NotImplementedError("SQLi phase not implemented yet")
+        #     cprint(
+        #         "The following targets are affected with SQLi:", "red", file=sys.stderr
+        #     )
+        #     for target in VULN_PATHS["sqli"][1]:
+        #         cprint(target, "red", file=sys.stderr)
 
-        if do_xss and VULN_PATHS["xss"][1]:
-            cprint(
-                "The following targets are affected with XSS:", "red", file=sys.stderr
-            )
-            for target in VULN_PATHS["xss"][1]:
-                cprint(target, "red", file=sys.stderr)
-
+        # if do_xss and VULN_PATHS["xss"][1]:
+        #     cprint(
+        #         "The following targets are affected with XSS:", "red", file=sys.stderr
+        #     )
+        #     for target in VULN_PATHS["xss"][1]:
+        #         cprint(target, "red", file=sys.stderr)
+    except Exception as e:
+        cprint(f"Error: {e}", "red", file=sys.stderr)
     finally:
         sys.stderr = orig_stdout
         f.close()

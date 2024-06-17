@@ -5,23 +5,8 @@ import sys
 import time
 from urllib.parse import parse_qs, urlparse
 
-from bs4 import BeautifulSoup
 import requests
 from termcolor import cprint
-
-from utils.app_config import CURRENT_DELAY, LONG_DELAY, REQUEST_DELAY, WAF_DELAY
-
-from fp.fp import FreeProxyException
-
-
-class SearchResult:
-    def __init__(self, url, title, description):
-        self.url = url
-        self.title = title
-        self.description = description
-
-    def __repr__(self):
-        return f"SearchResult(url={self.url}, title={self.title}, description={self.description})"
 
 
 # Function to check if a given URL has a query string
@@ -70,9 +55,10 @@ def param_converter(data, url=False):
             return json.loads(data)
     else:
         if url:
-            url = urlparse(url).scheme + "://" + urlparse(url).netloc
-            for part in list(data.values()):
-                url += "/" + part
+            # url = urlparse(url).scheme + "://" + urlparse(url).netloc
+            url = url + "/?"
+            for key in data.keys():
+                url += key + str(data[key]) + "&"
             return url
         else:
             return json.dumps(data)
@@ -80,76 +66,52 @@ def param_converter(data, url=False):
 
 def start_request(
     proxies,
-    advanced=False,
+    config,
     is_json=False,
     GET=False,
     data=None,
     headers=None,
     params=None,
     base_url=None,
-    full_query=None,
-    category=None,
-    scrap_urls=False,
-    retry_no=0,
     secured=False,
+    cookies=None,
+    session=None,
 ):
-    urls = None
+    if session:
+        requester = session
+    else:
+        requester = requests
     try:
         if GET:
-            cprint(
-                f"Searching for GET (n° {retry_no}): {base_url} & parameters {params} & headers {headers} - ({category} and with proxy {proxies}) ...",
-                "yellow",
-                file=sys.stderr,
-            )
-            response = requests.Session().get(
+            response = requester.get(
                 base_url,
-                # data=data[0],
                 headers=headers,
                 params=params,
                 allow_redirects=True,
                 proxies=proxies,
                 # cookies = {'CONSENT' : 'YES+'},
-                cookies={
-                    "CONSENT": "PENDING+987",
-                    "SOCS": "CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg",
-                },  # FOR EU USERS -> ANNOYING to parse
+                cookies=cookies,  # FOR EU USERS -> ANNOYING to parse
                 verify=secured,  # TODO add parameter for that
-                timeout=REQUEST_DELAY,
+                timeout=config["request_delay"],
             )
         elif is_json:
-            cprint(
-                f"Searching for POST + JSON (n° {retry_no}):  {base_url}/{full_query}  & data {data} & headers {headers} - ({category} and  with proxy {proxies}) ...",
-                "yellow",
-                file=sys.stderr,
-            )
-            response = requests.Session().post(
+            response = requester.post(
                 base_url,
                 json=data[0],
                 headers=headers,
-                timeout=REQUEST_DELAY,
+                timeout=config["request_delay"],
                 verify=secured,
-                cookies={
-                    "CONSENT": "PENDING+987",
-                    "SOCS": "CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg",
-                },  # FOR EU USERS
+                cookies=cookies,  # FOR EU USERS
                 proxies=proxies,
             )
         else:
-            cprint(
-                f"Searching for POST (n° {retry_no}):  {base_url}/{full_query}  & data {data} & headers {headers} - ({category} and with proxy {proxies}) ...",
-                "yellow",
-                file=sys.stderr,
-            )
-            response = requests.Session().post(
+            response = requester.post(
                 base_url,
                 data=data[0],
                 headers=headers,
-                timeout=REQUEST_DELAY,
+                timeout=config["request_delay"],
                 verify=secured,
-                cookies={
-                    "CONSENT": "PENDING+987",
-                    "SOCS": "CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg",
-                },  # FOR EU USERS
+                cookies=cookies,  # FOR EU USERS
                 proxies=proxies,
             )
 
@@ -176,117 +138,49 @@ def start_request(
                     color="red",
                     file=sys.stderr,
                 )
-                time.sleep(WAF_DELAY)
-        else:
-            if "did not match any documents" in response.text:
-                cprint(
-                    f"No results found for {full_query} with proxy {proxies}",
-                    "yellow",
-                    file=sys.stderr,
-                )
-            elif scrap_urls:
-                urls = []
-                soup = BeautifulSoup(response.text, "html.parser")
-                result_block = soup.find_all("div", attrs={"class": "g"})
-                cprint(
-                    f"Potentially {len(result_block)} links ...",
-                    "yellow",
-                    file=sys.stderr,
-                )
-                if len(result_block) == 0:
-                    cprint(
-                        f"No results found for {full_query} with proxy {proxies}\n{response.text}\nTrying new parsing method",
-                        "yellow",
-                        file=sys.stderr,
-                    )
-                    # Locate all <a> tags that contain the search results
-                    for a_tag in soup.find_all("a", href=True):
-                        # Extract the href attribute
-                        href = a_tag["href"]
-                        # Only consider hrefs that start with '/url?'
-                        if href.startswith("/url?"):
-                            # Extract the actual URL using regex
-                            url_match = re.search(r"(https?://[^&]+)", href)
-                            if url_match:
-                                url = url_match.group(0)
-                                print(url)
-                                # Extract the title (text within <div> with specific class)
-                                title_tag = a_tag.find("h3") or a_tag.find(
-                                    "div", class_="BNeawe vvjwJb AP7Wnd UwRFLe"
-                                )
-                                title = title_tag.get_text() if title_tag else None
-                                if title:
-                                    cprint(
-                                        f"Link appended to potential urls: {url}",
-                                        "green",
-                                        file=sys.stderr,
-                                    )
-                                    urls.append(url)
-                else:
-                    for result in result_block:
-                        # Find link, title, description
-                        link = result.find("a", href=True)
-                        title = result.find("h3")
-                        description_box = result.find(
-                            "div", {"style": "-webkit-line-clamp:2"}
-                        )
-                        if description_box:
-                            description = description_box.text
-                            if link and title and description:
-                                cprint(
-                                    f"Link appended to potential urls: {link['href']}",
-                                    "green",
-                                    file=sys.stderr,
-                                )
-                                if advanced:
-                                    urls.append(
-                                        SearchResult(
-                                            link["href"], title.text, description
-                                        )
-                                    )
-                                else:
-                                    urls.append(link["href"])
-
+                time.sleep(config["waf_delay"])
             else:
                 cprint(
-                    f"No scraping  ...",
-                    "yellow",
+                    f"Error in request ... - status code = {response.status_code}",
+                    color="red",
                     file=sys.stderr,
                 )
-
+                delay = random.uniform(
+                    config["current_delay"] - 5, config["current_delay"] + 5
+                )
+                time.sleep(delay)  # Wait before retrying
+            return None
+        elif "did not match any documents" in response.text:
+            cprint(
+                f"No results found for {params['q']} with proxy {proxies} \n {response.text}",
+                "yellow",
+                file=sys.stderr,
+            )
+            delay = random.uniform(
+                config["current_delay"] - 5, config["current_delay"] + 5
+            )
+            time.sleep(delay)  # Wait before retrying
+            return None
         # Placeholder for URL extraction logic
-        delay = random.uniform(CURRENT_DELAY - 5, CURRENT_DELAY + 5)
+        cprint("Request successful - 200", "green", file=sys.stderr)
+        delay = random.uniform(config["current_delay"] - 5, config["current_delay"] + 5)
         time.sleep(delay)  # Wait before retrying
-        return urls  # Return the category and a placeholder result
+        return response  # Return the category and a placeholder result
     except requests.exceptions.ProxyError as e:
         cprint(
-            f"ProxyError searching for {full_query} with proxy {proxies}: {e}",
+            f"ProxyError searching for {params['q']} with proxy {proxies}: {e}",
             "red",
             file=sys.stderr,
         )
-        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
+        delay = random.uniform(config["current_delay"] - 2, config["current_delay"] + 2)
         time.sleep(delay)  # Wait before retrying
-        # TODO add backoff timer for delay ?
-        return urls
+        return None
     except requests.exceptions.RequestException as e:
         cprint(
-            f"RequestException searching for {full_query} with proxy {proxies}: {e}",
+            f"RequestException searching for {params['q']} with proxy {proxies}: {e}",
             "red",
             file=sys.stderr,
         )
-        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
+        delay = random.uniform(config["current_delay"] - 2, config["current_delay"] + 2)
         time.sleep(delay)  # Wait before retrying
-        # TODO add backoff timer for delay ?
-        return urls
-    except FreeProxyException as e:
-        cprint(
-            f"FreeProxyException: {e}",
-            "red",
-            file=sys.stderr,
-        )
-        delay = random.uniform(CURRENT_DELAY - 2, CURRENT_DELAY + 2)
-        time.sleep(delay)  # Wait before retrying
-        # TODO add backoff timer for delay ?
-        return urls
-    # finally:
-    #     return urls
+        return None

