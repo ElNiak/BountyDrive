@@ -6,7 +6,12 @@ import sys
 from termcolor import cprint
 
 from utils.app_config import USER_AGENTS
-from requester.request_manager import deJSON, handle_anchor, js_extractor, start_request
+from requester.request_manager import (
+    de_json,
+    handle_anchor,
+    js_extractor,
+    start_request,
+)
 
 
 checkedScripts = set()
@@ -33,14 +38,14 @@ def scan(data, extractor, definitions, matcher=None):
 
 
 def _simple_match(regex, data):
-    regex = deJSON(regex)
+    regex = de_json(regex)
     match = re.search(regex, data)
     return match.group(1) if match else None
 
 
 def _replacement_match(regex, data):
     try:
-        regex = deJSON(regex)
+        regex = de_json(regex)
         group_parts_of_regex = r"^\/(.*[^\\])\/([^\/]+)\/$"
         ar = re.search(group_parts_of_regex, regex)
         search_for_regex = "(" + ar.group(1) + ")"

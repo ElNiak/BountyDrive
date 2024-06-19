@@ -125,17 +125,90 @@ def get_url(url, GET):
         return url
 
 
+def escaped(position, string):
+    usable = string[:position][::-1]
+    match = re.search(r"^\\*", usable)
+    if match:
+        match = match.group()
+        if len(match) == 1:
+            return True
+        elif len(match) % 2 == 0:
+            return False
+        else:
+            return True
+    else:
+        return False
+
+
+def is_bad_context(position, non_executable_contexts):
+    badContext = ""
+    for each in non_executable_contexts:
+        if each[0] < position < each[1]:
+            badContext = each[2]
+            break
+    return badContext
+
+
+xsschecker = "v3dm0s"
+
+
+def replace_value(mapping, old, new, strategy=None):
+    """
+    Replace old values with new ones following dict strategy.
+
+    The parameter strategy is None per default for inplace operation.
+    A copy operation is injected via strateg values like copy.copy
+    or copy.deepcopy
+
+    Note: A dict is returned regardless of modifications.
+    """
+    anotherMap = strategy(mapping) if strategy else mapping
+    if old in anotherMap.values():
+        for k in anotherMap.keys():
+            if anotherMap[k] == old:
+                anotherMap[k] = new
+    return anotherMap
+
+
 def js_extractor(response):
     """Extract js files from the response body"""
     scripts = []
     matches = re.findall(r"<(?:script|SCRIPT).*?(?:src|SRC)=([^\s>]+)", response)
     for match in matches:
-        match = match.replace("'", "").replace('"', "").replace("`", "")
-        scripts.append(match)
+        if xsschecker in match:
+            match = match.replace("'", "").replace('"', "").replace("`", "")
+            scripts.append(match)
     return scripts
 
 
-def deJSON(data):
+def stripper(string, substring, direction="right"):
+    done = False
+    strippedString = ""
+    if direction == "right":
+        string = string[::-1]
+    for char in string:
+        if char == substring and not done:
+            done = True
+        else:
+            strippedString += char
+    if direction == "right":
+        strippedString = strippedString[::-1]
+    return strippedString
+
+
+def fill_holes(original, new):
+    filler = 0
+    filled = []
+    for x, y in zip(original, new):
+        if int(x) == (y + filler):
+            filled.append(y)
+        else:
+            filled.extend([0, y])
+            filler += int(x) - y
+    return filled
+
+
+def de_json(data):
     return data.replace("\\\\", "\\")
 
 

@@ -13,8 +13,6 @@ from termcolor import cprint
 from utils.app_config import USER_AGENTS
 from requester.request_manager import start_request
 
-# from attacks.xss.xss_config import XSS_TEST_PAYLOAD
-
 
 def waf_detector(proxies, url, config, mode="xss"):
     # a payload which is noisy enough to provoke the WAF

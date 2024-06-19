@@ -33,7 +33,6 @@ from vpn_proxies.proxies_manager import round_robin_proxies, setup_proxies
 from vpn_proxies.vpn_manager import setup_vpn
 
 from attacks.xss.xss import test_vulnerability_xss
-from attacks.xss.xss_config import *
 
 from attacks.sqli.sqli_scan_config import *
 from attacks.sqli.sqli import test_vulnerability_sqli
@@ -392,6 +391,8 @@ if __name__ == "__main__":
         #         cprint(target, "red", file=sys.stderr)
     # except Exception as e:
     #     cprint(f"Error: {e}", "red", file=sys.stderr)
+    except KeyboardInterrupt:
+        cprint("Exiting...", "red", file=sys.stderr)
     finally:
         sys.stderr = orig_stdout
         f.close()
