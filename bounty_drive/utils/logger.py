@@ -5,7 +5,7 @@ import threading
 
 today_date = datetime.now()
 orig_stdout = sys.stderr
-f = open(f'logs/"{today_date}".log', "w")
+f = open(f'outputs/logs/"{today_date}".log', "w")
 lock_stderr = threading.Lock()
 
 

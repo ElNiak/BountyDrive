@@ -17,11 +17,11 @@ from utils.app_config import (
     USER_AGENTS,
 )
 
-from utils.web_scraper import parse_google_search_results, render_js_and_get_text
+from scraping.web_scraper import parse_google_search_results, render_js_and_get_text
 
-from utils.proxies_manager import prepare_proxies, round_robin_proxies
-from utils.request_manager import param_converter, start_request
-from utils.results_manager import get_processed_dorks, safe_add_result
+from vpn_proxies.proxies_manager import prepare_proxies, round_robin_proxies
+from requester.request_manager import param_converter, start_request
+from reporting.results_manager import get_processed_dorks, safe_add_result
 
 dork_id_lock = threading.Lock()
 
@@ -32,6 +32,7 @@ def google_search_with_proxy(
     category,
     config,
     domain,
+    processed_dorks,
     retries=1,
     advanced=False,
     dork_id=0,
@@ -46,7 +47,7 @@ def google_search_with_proxy(
 
     params = prepare_params(config)
 
-    dork_id = perform_searches(
+    return perform_searches(
         full_query,
         proxies,
         category,
@@ -55,10 +56,9 @@ def google_search_with_proxy(
         config,
         advanced,
         dork_id,
+        processed_dorks,
         use_session=not (proxy == None),
     )
-
-    return dork_id
 
 
 def prepare_params(config):
@@ -79,6 +79,7 @@ def perform_searches(
     config,
     advanced,
     dork_id,
+    processed_dorks,
     use_session,
 ):
 
@@ -92,6 +93,7 @@ def perform_searches(
         config,
         advanced,
         dork_id,
+        processed_dorks,
         use_session=use_session,
     )
 
@@ -107,10 +109,30 @@ def execute_search_with_retries(
     config,
     advanced,
     dork_id,
+    processed_dorks,
     use_session=False,
 ):
     base_url = "https://www.google.com/search"
-    headers = {"User-Agent": random.choice(USER_AGENTS)}
+    headers = {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip,deflate",
+        "Connection": "close",
+        "DNT": "1",
+        "accept-language": "en-US,en;q=0.9",
+        "cache-control": "max-age=0",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
+    if query in processed_dorks:
+        cprint(
+            f"Skipping already processed dork: {query}",
+            "yellow",
+            file=sys.stderr,
+        )
+        return dork_id
+
     for retry_no in range(retries):
         if use_session:
             cprint(
@@ -127,7 +149,14 @@ def execute_search_with_retries(
                     headers=headers,
                     params=params,
                     is_json=False,
-                    secured=True if "socks" in proxies["https"] else False,
+                    secured=(
+                        True
+                        if proxies
+                        and "https" in proxies
+                        and proxies["https"]
+                        and "socks" in proxies["https"]
+                        else False
+                    ),
                     session=session,
                     cookies={
                         "CONSENT": "PENDING+987",
@@ -148,15 +177,24 @@ def execute_search_with_retries(
                 headers=headers,
                 params=params,
                 is_json=False,
-                secured=True if "socks" in proxies["https"] else False,
+                secured=(
+                    True
+                    if proxies
+                    and "https" in proxies
+                    and proxies["https"]
+                    and "socks" in proxies["https"]
+                    else False
+                ),
                 cookies={
                     "CONSENT": "PENDING+987",
                     "SOCS": "CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmRlIAEaBgiAo_CmBg",
                 },
             )
+
+        urls = []
         if response:
             urls = parse_google_search_results(proxies, advanced, query, response.text)
-            if not urls or len(urls) == 0:
+            if (not urls or len(urls) == 0) and config["use_selenium"]:
                 cprint(
                     f"Parsing for google search failed for {query} - retrying with selenium...",
                     "red",
@@ -168,10 +206,10 @@ def execute_search_with_retries(
                 urls = parse_google_search_results(
                     proxies, advanced, query, html_content
                 )
-            result = dork_id, category, urls, query
-            safe_add_result(result, config)
-            with dork_id_lock:
-                dork_id += 1
+        result = dork_id, category, urls, query
+        safe_add_result(result, config)
+        # with dork_id_lock:
+        #     dork_id += 1
     # TODO to be faster also record non functionnal dork
     return dork_id
 
@@ -282,12 +320,6 @@ def load_google_dorks_and_search(config, categories):
         file=sys.stderr,
     )
     processed_dorks = get_processed_dorks(config)
-    search_tasks = filter_search_tasks(search_tasks, processed_dorks)
-    cprint(
-        f"Number of dorks to process: {sum([len(search_tasks[task]) for task in search_tasks])}",
-        "yellow",
-        file=sys.stderr,
-    )
 
     if not search_tasks:
         cprint(f"No dorks to process.", "red", file=sys.stderr)
@@ -328,6 +360,7 @@ def load_google_dorks_and_search(config, categories):
                 task["category"],
                 config,
                 task["domain"],
+                processed_dorks,
             ): task
             for task in search_tasks_with_proxy
         }

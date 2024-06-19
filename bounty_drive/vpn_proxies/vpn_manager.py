@@ -1,6 +1,10 @@
 import sys
 from termcolor import cprint
-from nordvpn_switcher.nordvpn_switch import initialize_VPN, rotate_VPN, terminate_VPN
+from vpn_proxies.nordvpn_switcher.nordvpn_switch import (
+    initialize_VPN,
+    rotate_VPN,
+    terminate_VPN,
+)
 
 
 def setup_vpn(config):

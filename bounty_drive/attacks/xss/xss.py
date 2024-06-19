@@ -16,13 +16,22 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from attacks.dorks.google_dorking import get_proxies_and_cycle
-from utils.web_scraper import scrape_links_from_url
-from utils.proxies_manager import prepare_proxies, round_robin_proxies
-from utils.waf_mitigation import waf_detector
+from attacks.xss.xss_cve import retire_js
+from reporting.results_manager import safe_add_result, update_attack_result
+from scraping.web_scraper import scrape_links_from_url
+from vpn_proxies.proxies_manager import prepare_proxies, round_robin_proxies
+from bypasser.waf_mitigation import waf_detector
 from utils.app_config import (
     USER_AGENTS,
 )
-from utils.request_manager import inject_params, inject_payload
+from requester.request_manager import (
+    get_params,
+    get_url,
+    handle_anchor,
+    inject_params,
+    inject_payload,
+    start_request,
+)
 
 try:
     from selenium import webdriver
@@ -167,7 +176,6 @@ fuzzes = (  # Fuzz strings to test WAFs
     "<test OndRAgOvEr=x>",
 )
 
-
 minEfficiency = 90  # payloads below this efficiency will not be displayed
 
 # attributes that have special properties
@@ -308,31 +316,9 @@ def generate_xss_urls(url):
     return parsed_urls, total_len
 
 
-def test_xss_target(url, proxy, config):
-    total_parsed_targets = []
-    try:
-        cprint(
-            f"Intializing Payload Generator for url {url}",
-            color="yellow",
-            file=sys.stderr,
-        )
-        parsed_target = generate_xss_urls(url)
-        cprint(
-            f"Generated {parsed_target[1]} payloads", color="yellow", file=sys.stderr
-        )
-        for each in parsed_target[0]:
-            total_parsed_targets.append(each)
-
-        cprint(
-            f"Total Parsed Targets: {len(total_parsed_targets)}",
-            color="yellow",
-            file=sys.stderr,
-        )
-    except Exception as e:
-        cprint(f"Error generating payloads for {url}: {e}", "red", file=sys.stderr)
-        return False, []
-
-    is_waffed = waf_detector(url=url, proxies=proxy, mode="xss")
+def test_xss_target(url, proxy, config, dork_id, link_id, attack_id):
+    proxies = prepare_proxies(proxy, config)
+    is_waffed = waf_detector(url=url, proxies=proxies, config=config, mode="xss")
 
     if is_waffed:
         cprint(f"WAF detected <!>", color="red", file=sys.stderr)
@@ -349,94 +335,105 @@ def test_xss_target(url, proxy, config):
         "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip,deflate",
         "Connection": "close",
+        "accept-language": "en-US,en;q=0.9",
+        "cache-control": "max-age=0",
         "DNT": "1",
         "Upgrade-Insecure-Requests": "1",
     }
-    potential_payloads = []
-    for payload_url in total_parsed_targets:
-        try:
-            # TODO take screenshot
-            options = Options()
-            options.headless = True
-            if proxy:
-                options.add_argument(f"--proxy-server={proxy}")
-            # service=Service('/path/to/chromedriver'),
-            driver = webdriver.Chrome(options=options)
 
-            # Create a request interceptor
-            def interceptor(request):
-                request.headers = headers
+    try:
+        # TODO take screenshot
+        options = Options()
+        options.headless = True
+        if proxy:
+            options.add_argument(f"--proxy-server={proxy}")
+        # service=Service('/path/to/chromedriver'),
+        driver = webdriver.Chrome(options=options)
 
-            # Set the interceptor on the driver
-            driver.request_interceptor = interceptor
+        # Create a request interceptor
+        def interceptor(request):
+            request.headers = headers
 
-            driver.get(url)
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
+        # Set the interceptor on the driver
+        driver.request_interceptor = interceptor
+
+        driver.get(url)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        html_content = driver.page_source
+        driver.quit()
+
+        if url in html_content:
+            cprint(f"[VULNERABLE XSS] {url}", "green", file=sys.stderr)
+            update_attack_result(
+                config, dork_id, link_id, attack_id, "xss", True, "payload TODO"
             )
-            html_content = driver.page_source
-            driver.quit()
-
-            if payload_url in html_content:
-                cprint(f"Payload URL: {payload_url}", color="green", file=sys.stderr)
-                potential_payloads.append(payload_url)
-
-            delay = random.uniform(
-                config["current_delay"] - 2, config["current_delay"] + 2
-            )
-            time.sleep(delay)  # Wait before retrying
-        except Exception as e:
-            cprint(
-                f"Error searching Selenium for {payload_url} with proxy {proxies}: {e}",
-                "red",
-                file=sys.stderr,
-            )
-            delay = random.uniform(
-                config["current_delay"] - 2, config["current_delay"] + 2
-            )
-            time.sleep(delay)
-        # try:
-        #     if (
-        #         payload_url
-        #         in requests.Session()
-        #         .get(
-        #             payload_url,
-        #             proxies=proxies,
-        #             headers=headers,
-        #             timeout=config["request_delay"],
-        #             allow_redirects=True,
-        #             verify=secured,
-        #         )
-        #         .text
-        #     ):
-        #         cprint(f"Payload URL: {payload_url}", color="green", file=sys.stderr)
-        #         potential_payloads.append(payload_url)
-        #     delay = random.uniform(
-        #         config["current_delay"] - 2, config["current_delay"] + 2
-        #     )
-        #     time.sleep(delay)  # Wait before retrying
-        # except requests.exceptions.ProxyError as e:
-        #     cprint(
-        #         f"ProxyError searching for {payload_url} with proxy {proxies}: {e}",
-        #         "red",
-        #         file=sys.stderr,
-        #     )
-        #     delay = random.uniform(
-        #         config["current_delay"] - 2, config["current_delay"] + 2
-        #     )
-        #     time.sleep(delay)  # Wait before retrying
-        # except requests.exceptions.RequestException as e:
-        #     cprint(
-        #         f"RequestException searching for {payload_url} with proxy {proxies}: {e}",
-        #         "red",
-        #         file=sys.stderr,
-        #     )
-        #     delay = random.uniform(
-        #         config["current_delay"] - 2, config["current_delay"] + 2
-        #     )
-        #     time.sleep(delay)  # Wait before retrying
-
-    return len(potential_payloads) > 0, potential_payloads
+            return
+        update_attack_result(
+            config, dork_id, link_id, attack_id, "xss", False, "payload TODO"
+        )
+        delay = random.uniform(config["current_delay"] - 2, config["current_delay"] + 2)
+        time.sleep(delay)  # Wait before retrying
+    except Exception as e:
+        cprint(
+            f"Error searching Selenium for {url} with proxy {proxies}: {e}",
+            "red",
+            file=sys.stderr,
+        )
+        update_attack_result(
+            config, dork_id, link_id, attack_id, "xss", False, "payload TODO"
+        )
+        delay = random.uniform(config["current_delay"] - 2, config["current_delay"] + 2)
+        time.sleep(delay)
+        return
+    finally:
+        driver.quit()
+        cprint(
+            f"[NOT VULNERABLE XSS] {url}",
+            "red",
+            file=sys.stderr,
+        )
+    # try:
+    #     if (
+    #         payload_url
+    #         in requests.Session()
+    #         .get(
+    #             payload_url,
+    #             proxies=proxies,
+    #             headers=headers,
+    #             timeout=config["request_delay"],
+    #             allow_redirects=True,
+    #             verify=secured,
+    #         )
+    #         .text
+    #     ):
+    #         cprint(f"Payload URL: {payload_url}", color="green", file=sys.stderr)
+    #         potential_payloads.append(payload_url)
+    #     delay = random.uniform(
+    #         config["current_delay"] - 2, config["current_delay"] + 2
+    #     )
+    #     time.sleep(delay)  # Wait before retrying
+    # except requests.exceptions.ProxyError as e:
+    #     cprint(
+    #         f"ProxyError searching for {payload_url} with proxy {proxies}: {e}",
+    #         "red",
+    #         file=sys.stderr,
+    #     )
+    #     delay = random.uniform(
+    #         config["current_delay"] - 2, config["current_delay"] + 2
+    #     )
+    #     time.sleep(delay)  # Wait before retrying
+    # except requests.exceptions.RequestException as e:
+    #     cprint(
+    #         f"RequestException searching for {payload_url} with proxy {proxies}: {e}",
+    #         "red",
+    #         file=sys.stderr,
+    #     )
+    #     delay = random.uniform(
+    #         config["current_delay"] - 2, config["current_delay"] + 2
+    #     )
+    #     time.sleep(delay)  # Wait before retrying
 
 
 def base64_encoder(string):
@@ -483,7 +480,7 @@ def dom(response):
                                             .group()
                                             .replace("$", "\$")
                                         )
-                            line = line.replace(source, yellow + source + end)
+                            # line = line.replace(source, yellow + source + end)
                 for controlledVariable in controlledVariables:
                     allControlledVariables.add(controlledVariable)
                 for controlledVariable in allControlledVariables:
@@ -492,17 +489,17 @@ def dom(response):
                     )
                     if matches:
                         sourceFound = True
-                        line = re.sub(
-                            r"\b%s\b" % controlledVariable,
-                            yellow + controlledVariable + end,
-                            line,
-                        )
+                        # line = re.sub(
+                        #     r"\b%s\b" % controlledVariable,
+                        #     yellow + controlledVariable + end,
+                        #     line,
+                        # )
                 pattern = re.finditer(sinks, newLine)
                 for grp in pattern:
                     if grp:
                         sink = newLine[grp.start() : grp.end()].replace(" ", "")
                         if sink:
-                            line = line.replace(sink, red + sink + end)
+                            # line = line.replace(sink, red + sink + end)
                             sinkFound = True
                 if line != newLine:
                     highlighted.append("%-3s %s" % (str(num), line.lstrip(" ")))
@@ -515,81 +512,182 @@ def dom(response):
         return []
 
 
-# def photon(seedUrl, headers, level, threadCount, delay, timeout, skipDOM):
-#     forms = []  # web forms
-#     processed = set()  # urls that have been crawled
-#     storage = set()  # urls that belong to the target i.e. in-scope
-#     schema = urlparse(seedUrl).scheme  # extract the scheme e.g. http or https
-#     host = urlparse(seedUrl).netloc  # extract the host e.g. example.com
-#     main_url = schema + '://' + host  # join scheme and host to make the root url
-#     storage.add(seedUrl)  # add the url to storage
-#     checkedDOMs = []
+def zetanize(response):
+    def e(string):
+        return string.encode("utf-8")
 
-#     def rec(target):
-#         processed.add(target)
-#         printableTarget = '/'.join(target.split('/')[3:])
-#         if len(printableTarget) > 40:
-#             printableTarget = printableTarget[-40:]
-#         else:
-#             printableTarget = (printableTarget + (' ' * (40 - len(printableTarget))))
-#         logger.run('Parsing %s\r' % printableTarget)
-#         url = getUrl(target, True)
-#         params = getParams(target, '', True)
-#         if '=' in target:  # if there's a = in the url, there should be GET parameters
-#             inps = []
-#             for name, value in params.items():
-#                 inps.append({'name': name, 'value': value})
-#             forms.append({0: {'action': url, 'method': 'get', 'inputs': inps}})
-#         response = requester(url, params, headers, True, delay, timeout).text
-#         retireJs(url, response)
-#         if not skipDOM:
-#             highlighted = dom(response)
-#             clean_highlighted = ''.join([re.sub(r'^\d+\s+', '', line) for line in highlighted])
-#             if highlighted and clean_highlighted not in checkedDOMs:
-#                 checkedDOMs.append(clean_highlighted)
-#                 logger.good('Potentially vulnerable objects found at %s' % url)
-#                 logger.red_line(level='good')
-#                 for line in highlighted:
-#                     logger.no_format(line, level='good')
-#                 logger.red_line(level='good')
-#         forms.append(zetanize(response))
-#         matches = re.findall(r'<[aA].*href=["\']{0,1}(.*?)["\']', response)
-#         for link in matches:  # iterate over the matches
-#             # remove everything after a "#" to deal with in-page anchors
-#             link = link.split('#')[0]
-#             if link.endswith(('.pdf', '.png', '.jpg', '.jpeg', '.xls', '.xml', '.docx', '.doc')):
-#                 pass
-#             else:
-#                 if link[:4] == 'http':
-#                     if link.startswith(main_url):
-#                         storage.add(link)
-#                 elif link[:2] == '//':
-#                     if link.split('/')[2].startswith(host):
-#                         storage.add(schema + link)
-#                 elif link[:1] == '/':
-#                     storage.add(main_url + link)
-#                 else:
-#                     storage.add(main_url + '/' + link)
-#     try:
-#         for x in range(level):
-#             urls = storage - processed  # urls to crawl = all urls - urls that have been crawled
-#             # for url in urls:
-#             #     rec(url)
-#             threadpool = concurrent.futures.ThreadPoolExecutor(
-#                 max_workers=threadCount)
-#             futures = (threadpool.submit(rec, url) for url in urls)
-#             for i in concurrent.futures.as_completed(futures):
-#                 pass
-#     except KeyboardInterrupt:
-#         return [forms, processed]
-#     return [forms, processed]
+    def d(string):
+        return string.decode("utf-8")
+
+    # remove the content between html comments
+    response = re.sub(r"(?s)<!--.*?-->", "", response)
+    forms = {}
+    matches = re.findall(
+        r"(?i)(?s)<form.*?</form.*?>", response
+    )  # extract all the forms
+    num = 0
+    for match in matches:  # everything else is self explanatory if you know regex
+        page = re.search(r'(?i)action=[\'"](.*?)[\'"]', match)
+        method = re.search(r'(?i)method=[\'"](.*?)[\'"]', match)
+        forms[num] = {}
+        forms[num]["action"] = d(e(page.group(1))) if page else ""
+        forms[num]["method"] = d(e(method.group(1)).lower()) if method else "get"
+        forms[num]["inputs"] = []
+        inputs = re.findall(r"(?i)(?s)<input.*?>", response)
+        for inp in inputs:
+            inpName = re.search(r'(?i)name=[\'"](.*?)[\'"]', inp)
+            if inpName:
+                inpType = re.search(r'(?i)type=[\'"](.*?)[\'"]', inp)
+                inpValue = re.search(r'(?i)value=[\'"](.*?)[\'"]', inp)
+                inpName = d(e(inpName.group(1)))
+                inpType = d(e(inpType.group(1))) if inpType else ""
+                inpValue = d(e(inpValue.group(1))) if inpValue else ""
+                if inpType.lower() == "submit" and inpValue == "":
+                    inpValue = "Submit Query"
+                inpDict = {"name": inpName, "type": inpType, "value": inpValue}
+                forms[num]["inputs"].append(inpDict)
+        num += 1
+    return forms
+
+
+def photon_crawler(seedUrl, config, proxy):
+    forms = []  # web forms
+    processed = set()  # urls that have been crawled
+    storage = set()  # urls that belong to the target i.e. in-scope
+    schema = urlparse(seedUrl).scheme  # extract the scheme e.g. http or https
+    host = urlparse(seedUrl).netloc  # extract the host e.g. example.com
+    main_url = schema + "://" + host  # join scheme and host to make the root url
+    storage.add(seedUrl)  # add the url to storage
+    checkedDOMs = []
+
+    def rec(target):
+        processed.add(target)
+        printableTarget = "/".join(target.split("/")[3:])
+        if len(printableTarget) > 40:
+            printableTarget = printableTarget[-40:]
+        else:
+            printableTarget = printableTarget + (" " * (40 - len(printableTarget)))
+        cprint(
+            "Parsing %s\r" % printableTarget, color="yellow", end="", file=sys.stderr
+        )
+        url = get_url(target, True)
+        params = get_params(target, "", True)
+        if "=" in target:  # if there's a = in the url, there should be GET parameters
+            inps = []
+            for name, value in params.items():
+                inps.append({"name": name, "value": value})
+            forms.append({0: {"action": url, "method": "get", "inputs": inps}})
+
+        headers = {
+            "User-Agent": random.choice(USER_AGENTS),
+            "X-HackerOne-Research": "elniak",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip,deflate",
+            "accept-language": "en-US,en;q=0.9",
+            "cache-control": "max-age=0",
+            "Connection": "close",
+            "DNT": "1",
+            "Upgrade-Insecure-Requests": "1",
+        }
+        # TODO add session
+        proxies = prepare_proxies(proxy, config)
+        cprint(
+            f"Searching for GET - Session (n° 0): {url} \n\t - parameters {params} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
+            "yellow",
+            file=sys.stderr,
+        )
+        response = start_request(
+            proxies=proxies,
+            config=config,
+            base_url=url,
+            params=params,
+            secured=True
+            if proxies and "https" in proxies and "socks" in proxies["https"]
+            else False,
+            GET=True,
+            headers=headers,
+        )
+
+        if hasattr(response, "text"):
+            response = response.text
+        else:
+            response = ""
+
+        retire_js(url, response, config, proxies)
+
+        if not config["skip_dom"]:
+            highlighted = dom(response)
+            clean_highlighted = "".join(
+                [re.sub(r"^\d+\s+", "", line) for line in highlighted]
+            )
+            if highlighted and clean_highlighted not in checkedDOMs:
+                checkedDOMs.append(clean_highlighted)
+                cprint(
+                    "Potentially vulnerable objects found at %s" % url,
+                    color="green",
+                    file=sys.stderr,
+                )
+                for line in highlighted:
+                    cprint(line, color="green", file=sys.stderr)
+
+        forms.append(zetanize(response))
+
+        matches = re.findall(r'<[aA].*href=["\']{0,1}(.*?)["\']', response)
+        for link in matches:  # iterate over the matches
+            # remove everything after a "#" to deal with in-page anchors
+            link = link.split("#")[0]
+            if link.endswith(
+                (".pdf", ".png", ".jpg", ".jpeg", ".xls", ".xml", ".docx", ".doc")
+            ):
+                pass
+            else:
+                if link[:4] == "http":
+                    if link.startswith(main_url):
+                        storage.add(link)
+                elif link[:2] == "//":
+                    if link.split("/")[2].startswith(host):
+                        storage.add(schema + link)
+                elif link[:1] == "/":
+                    storage.add(main_url + link)
+                else:
+                    storage.add(main_url + "/" + link)
+
+    try:
+        for x in range(config["level"]):
+            urls = storage - processed
+            # urls to crawl = all urls - urls that have been crawled
+
+            cprint(
+                "Crawling %s urls for forms and links\r" % len(urls),
+                color="yellow",
+                file=sys.stderr,
+            )
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+                future_to_search = {executor.submit(rec, url): url for url in urls}
+                for website in tqdm(
+                    concurrent.futures.as_completed(future_to_search),
+                    desc=f"Photon Crawling REC links DB for xss website",
+                    unit="site",
+                    total=len(future_to_search),
+                ):
+                    website.result()
+
+            # threadpool = concurrent.futures.ThreadPoolExecutor(max_workers=30)
+            # futures = (threadpool.submit(rec, url) for url in urls)
+            # for i in concurrent.futures.as_completed(futures):
+            #     pass
+    except KeyboardInterrupt:
+        return [forms, processed]
+    return [forms, processed]
 
 
 # def checker(url, params, headers, GET, delay, payload, positions, timeout, encoding):
 #     checkString = 'st4r7s' + payload + '3nd'
 #     if encoding:
 #         checkString = encoding(unquote(checkString))
-#     response = requester(url, replaceValue(
+#     response = start_request(url, replaceValue(
 #         params, xsschecker, checkString, copy.deepcopy), headers, GET, delay, timeout).text.lower()
 #     reflectedPositions = []
 #     for match in re.finditer('st4r7s', response):
@@ -701,7 +799,11 @@ def test_vulnerability_xss(config, website_to_test):
                     total=len(future_to_search),
                 ):
                     with lock:
-                        new_urls += website.result()
+                        new_urls_temps = website.result()
+                        safe_add_result(
+                            ("web_scrap", "xss", new_urls_temps, "web_scrap"), config
+                        )
+                        new_urls += new_urls_temps
 
             cprint(f"Found {len(new_urls)} new links", color="green", file=sys.stderr)
 
@@ -711,19 +813,116 @@ def test_vulnerability_xss(config, website_to_test):
 
             website_to_test = list(set(website_to_test))
 
-            cprint(
-                f"Total links: {len(website_to_test)}",
-                color="green",
-                file=sys.stderr,
-            )
+        if config["do_crawl"]:
+
+            lock = threading.Lock()
+
+            number_of_worker = len(proxies)
+            search_tasks_with_proxy = []
+            for website in website_to_test:
+
+                cprint(f"Testing {website} for XSS", color="yellow", file=sys.stderr)
+                scheme = urlparse(website).scheme
+                cprint(
+                    "Target scheme: {}".format(scheme), color="yellow", file=sys.stderr
+                )
+                host = urlparse(website).netloc
+
+                main_url = scheme + "://" + host
+
+                cprint("Target host: {}".format(host), color="yellow", file=sys.stderr)
+
+                proxy = next(proxy_cycle)
+                search_tasks_with_proxy.append({"website": website, "proxy": proxy})
+
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=number_of_worker
+            ) as executor:
+                future_to_search = {
+                    executor.submit(
+                        photon_crawler, task["website"], config, task["proxy"]
+                    ): task
+                    for task in search_tasks_with_proxy
+                }
+                for website in tqdm(
+                    concurrent.futures.as_completed(future_to_search),
+                    desc=f"Photon Crawling links DB for xss website",
+                    unit="site",
+                    total=len(future_to_search),
+                ):
+                    with lock:
+                        crawling_result = website.result()
+
+                        cprint(
+                            f"Forms: {crawling_result[0]}",
+                            color="green",
+                            file=sys.stderr,
+                        )
+                        cprint(
+                            f"DOM URLs: {crawling_result[1]}",
+                            color="green",
+                            file=sys.stderr,
+                        )
+                        forms = crawling_result[0]
+                        safe_add_result(("crawl", "xss", forms, "forms"), config)
+
+                        domURLs = list(crawling_result[1])
+                        safe_add_result(("crawl", "xss", domURLs, "doms"), config)
+
+                        difference = abs(len(domURLs) - len(forms))
+                        if len(domURLs) > len(forms):
+                            for i in range(difference):
+                                forms.append(0)
+                        elif len(forms) > len(domURLs):
+                            for i in range(difference):
+                                domURLs.append(0)
+                        website_to_test = list(website_to_test)
+                        website_to_test += domURLs
+                        website_to_test += forms
+                        website_to_test = list(set(website_to_test))
+
+        cprint(
+            f"Total links: {len(website_to_test)}",
+            color="green",
+            file=sys.stderr,
+        )
 
         lock = threading.Lock()
+
         # Now, append a proxy to each task
         number_of_worker = len(proxies)
         search_tasks_with_proxy = []
         for website in website_to_test:
-            proxy = next(proxy_cycle)
-            search_tasks_with_proxy.append({"website": website, "proxy": proxy})
+            total_parsed_targets = []
+            try:
+                cprint(
+                    f"Intializing Payload Generator for url {website}",
+                    color="yellow",
+                    file=sys.stderr,
+                )
+                parsed_target = generate_xss_urls(website)
+                cprint(
+                    f"Generated {parsed_target[1]} payloads",
+                    color="yellow",
+                    file=sys.stderr,
+                )
+                for each in parsed_target[0]:
+                    total_parsed_targets.append(each)
+
+                cprint(
+                    f"Total Parsed Targets: {len(total_parsed_targets)}",
+                    color="yellow",
+                    file=sys.stderr,
+                )
+                for url in total_parsed_targets:
+                    proxy = next(proxy_cycle)
+                    search_tasks_with_proxy.append({"website": url, "proxy": proxy})
+            except Exception as e:
+                cprint(
+                    f"Error generating payloads for {website}: {e}",
+                    "red",
+                    file=sys.stderr,
+                )
 
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=number_of_worker
@@ -741,18 +940,6 @@ def test_vulnerability_xss(config, website_to_test):
                 total=len(future_to_search),
             ):
                 result, payload_url = website.result()
-                with lock:
-                    if result:
-                        vuln_path.append(payload_url)
-                        cprint(
-                            f"[VULNERABLE XSS] {payload_url}", "green", file=sys.stderr
-                        )
-                    else:
-                        cprint(
-                            f"[NOT VULNERABLE XSS] {payload_url}",
-                            "red",
-                            file=sys.stderr,
-                        )
 
         # if vuln_path:
         #     driver.execute_script("window.open('');")

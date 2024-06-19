@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 import requests
 from termcolor import cprint
 
-from utils.github_config import GITHUB_API_URL, TOKENS_LIST
+from attacks.dorks.github_config import GITHUB_API_URL, TOKENS_LIST
 from utils.app_config import *
 
 token_index = 0

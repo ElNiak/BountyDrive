@@ -46,6 +46,7 @@ TODO: we should proxy proxy chains
 
 # HAPPY HUNTING
 
+sudo apt-get install portaudio19-dev
 
 # Ressource:
 https://raw.githubusercontent.com/darklotuskdb/SSTI-XSS-Finder/main/Payloads.txt

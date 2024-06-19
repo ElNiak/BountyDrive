@@ -8,7 +8,7 @@ from termcolor import cprint, cprint
 from tqdm import tqdm
 from urllib3 import Retry
 from requests.adapters import HTTPAdapter
-from utils.proxies_manager import round_robin_proxies
+from vpn_proxies.proxies_manager import round_robin_proxies
 
 
 def run_sqlmap(url, proxy):

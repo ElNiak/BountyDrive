@@ -62,7 +62,7 @@ def is_proxy_alive(proxy, config, retry=0):
 
 
 # Load proxies from file
-def load_proxies(file="proxies/free-proxy-list.txt"):
+def load_proxies(file="vpn_proxies/proxies/free-proxy-list.txt"):
     with open(file, "r") as file:
         return [line.strip() for line in file if line.strip()]
 
@@ -129,8 +129,8 @@ def setup_proxies(config):
     if config["use_nordvpn_proxy"]:
         config["nord_vpn_login"] = json.loads(config["nord_vpn_login"])
         cprint("Using NordVPN proxies ", "yellow", file=sys.stderr)
-        if os.path.exists("proxies/nordvpn_login.csv"):
-            with open("proxies/nordvpn_login.csv", "r") as file:
+        if os.path.exists("vpn_proxies/proxies/nordvpn_login.csv"):
+            with open("vpn_proxies/proxies/nordvpn_login.csv", "r") as file:
                 nordvpn = list(csv.reader(file))
                 for i in range(1, len(nordvpn)):
                     config["nord_vpn_login"].append([nordvpn[i][0], nordvpn[i][1]])
@@ -141,7 +141,7 @@ def setup_proxies(config):
                 )
             # https://stackoverflow.com/questions/64516109/how-to-use-nordvpn-servers-as-proxy-for-python-requests
             # TODO: curl -s https://nordvpn.com/api/server | jq -r ".[] | select(.features.socks==true) | [.domain, .name] | @tsv"
-            with open("proxies/nordvpn-proxy-list.txt", "r") as file:
+            with open("vpn_proxies/proxies/nordvpn-proxy-list.txt", "r") as file:
                 for line in file.readlines():
                     line = line.replace("\n", "")
                     cprint(f"NordVPN Proxy: {line}", "yellow", file=sys.stderr)
@@ -166,52 +166,3 @@ def setup_proxies(config):
 
 
 # TODO: https://stackoverflow.com/questions/55872164/how-to-rotate-proxies-on-a-python-requests
-class Proxy:
-    """container for a proxy"""
-
-    def __init__(self, ip, type_="datacenter") -> None:
-        self.ip: str = ip
-        self.type: Literal["datacenter", "residential"] = type_
-        _, _, self.subnet, self.host = ip.split(":")[0].split(".")
-        self.status: Literal["alive", "unchecked", "dead"] = "unchecked"
-        self.last_used: int = None
-
-    def __repr__(self) -> str:
-        return self.ip
-
-    def __str__(self) -> str:
-        return self.ip
-
-
-class Rotator:
-    """weighted random proxy rotator"""
-
-    def __init__(self, proxies: List[Proxy]):
-        self.proxies = proxies
-        self._last_subnet = None
-
-    def weigh_proxy(self, proxy: Proxy):
-        weight = 1_000
-        if proxy.subnet == self._last_subnet:
-            weight -= 500
-        if proxy.status == "dead":
-            weight -= 500
-        if proxy.status == "unchecked":
-            weight += 250
-        if proxy.type == "residential":
-            weight += 250
-        if proxy.last_used:
-            _seconds_since_last_use = time.time() - proxy.last_used
-            weight += _seconds_since_last_use
-        return weight
-
-    def get(self):
-        proxy_weights = [self.weigh_proxy(p) for p in self.proxies]
-        proxy = random.choices(
-            self.proxies,
-            weights=proxy_weights,
-            k=1,
-        )[0]
-        proxy.last_used = time.time()
-        self.last_subnet = proxy.subnet
-        return proxy

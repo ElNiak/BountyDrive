@@ -1,5 +1,15 @@
 # /usr/bin/python3
 import sys
+
+# TO get stacktrace in case of segfault
+# gdb pypy3; run bounty_drive.py
+# import faulthandler
+# faulthandler.enable(file=sys.stderr, all_threads=True)
+
+import utils.logger
+from utils.logger import *
+
+
 from termcolor import cprint
 import os
 import csv
@@ -14,9 +24,13 @@ from attacks.dorks.google_dorking import (
 
 from attacks.dorks.github_dorking import *
 
-from utils.results_manager import get_last_processed_ids, get_xss_links
-from utils.proxies_manager import round_robin_proxies, setup_proxies
-from utils.vpn_manager import setup_vpn
+from reporting.results_manager import (
+    get_last_processed_ids,
+    get_processed_dorks,
+    get_xss_links,
+)
+from vpn_proxies.proxies_manager import round_robin_proxies, setup_proxies
+from vpn_proxies.vpn_manager import setup_vpn
 
 from attacks.xss.xss import test_vulnerability_xss
 from attacks.xss.xss_config import *
@@ -26,7 +40,7 @@ from attacks.sqli.sqli import test_vulnerability_sqli
 
 from utils.banner import *
 from utils.banner import load_animation
-from utils.logger import *
+
 
 import configparser
 
@@ -51,6 +65,8 @@ def read_config(file_path):
         "do_web_scrap": config["Settings"].getboolean("do_web_scrap"),
         "target_file": config["Settings"].get("target_file"),
         "experiment_file_path": config["Settings"].get("experiment_file_path"),
+        "max_thread": config["Settings"].getint("max_thread", 30),
+        "logging": config["Settings"].get("logging", "DEBUG"),
         # Google Dorking
         "do_dorking_google": config["GoogleDorking"].getboolean("do_dorking_google"),
         "total_output": config["GoogleDorking"].getint("total_output"),
@@ -58,6 +74,7 @@ def read_config(file_path):
         "default_total_output": config["GoogleDorking"].getint("default_total_output"),
         "default_page_no": config["GoogleDorking"].getint("default_page_no"),
         "lang": config["GoogleDorking"].get("lang"),
+        "use_selenium": config["GoogleDorking"].getboolean("use_selenium"),
         # Github Dorking
         "do_dorking_github": config["GithubDorking"].getboolean("do_dorking_github"),
         # XSS
@@ -66,6 +83,10 @@ def read_config(file_path):
         "fuzz_xss": config["XSS"].getboolean("fuzz_xss"),
         "blind_xss": config["XSS"].getboolean("blind_xss"),
         "do_sqli": config["SQLi"].getboolean("do_sqli"),
+        # Crawling
+        "do_crawl": config["crawler"].getboolean("do_crawl", True),
+        "skip_dom": config["crawler"].getboolean("skip_dom", False),
+        "level": config["crawler"].getint("level", 1),
         # Proxy
         "use_proxy": config["Proxy"].getboolean("use_proxy"),
         "use_free_proxy_file": config["Proxy"].getboolean("use_free_proxy_file"),
@@ -181,6 +202,7 @@ def get_user_input(config_file="configs/config.ini"):
                                 file=sys.stderr,
                             )
 
+            processed_dorks = get_processed_dorks(config)
             with concurrent.futures.ThreadPoolExecutor(
                 max_workers=number_of_worker
             ) as executor:
@@ -192,6 +214,7 @@ def get_user_input(config_file="configs/config.ini"):
                         task["category"],
                         config,
                         task["domain"],
+                        processed_dorks,
                     ): task
                     for task in search_tasks_with_proxy
                 }
@@ -208,6 +231,7 @@ def get_user_input(config_file="configs/config.ini"):
             config["subdomain"] = subdomain_list
     else:
         config["subdomain"] = [None]
+
     config["total_output"] = saved_total_output
 
     return config, last_dork_id, last_link_id, last_attack_id, categories
@@ -227,23 +251,44 @@ def setup_csv(config, categories):
     if config["do_dorking_github"]:
         csv_headers.append("github_success")
     if config["do_sqli"]:
+        sqli_csv_headers = [
+            "dork_id",
+            "link_id",
+            "attack_id",
+            "url",
+            "dork",
+            "success",
+            "payload",
+        ]
         sqli_csv = config["experiment_file_path"].replace(".csv", "_sqli.csv")
         config["sqli_csv"] = sqli_csv
         if not os.path.exists(sqli_csv) or os.path.getsize(sqli_csv) == 0:
             with open(sqli_csv, mode="a", newline="") as file:
                 writer = csv.writer(file)
-                writer.writerow(csv_headers)
+                writer.writerow(sqli_csv_headers)
 
         csv_headers.append("sqli_success")
         categories.append("sqli")
     if config["do_xss"]:
-        # TODO
+        xss_csv_headers = [
+            "dork_id",
+            "link_id",
+            "attack_id",
+            "url",
+            "dork",
+            "success",
+            "payload",
+            "is_dom",
+            "is_form",
+            "is_unknown",
+            "already_attacked",
+        ]
         xss_csv = config["experiment_file_path"].replace(".csv", "_xss.csv")
         config["xss_csv"] = xss_csv
         if not os.path.exists(xss_csv) or os.path.getsize(xss_csv) == 0:
             with open(xss_csv, mode="a", newline="") as file:
                 writer = csv.writer(file)
-                writer.writerow(csv_headers)
+                writer.writerow(xss_csv_headers)
 
         csv_headers.append("xss_success")
         categories.append("xss")
@@ -279,7 +324,7 @@ if __name__ == "__main__":
             ) = get_user_input()
         else:
             cprint(
-                "Invalid number of arguments (./bounty_drive.py [config_file_path])",
+                "Invalid number of arguments (./py [config_file_path])",
                 "red",
                 file=sys.stderr,
             )
@@ -345,8 +390,8 @@ if __name__ == "__main__":
         #     )
         #     for target in VULN_PATHS["xss"][1]:
         #         cprint(target, "red", file=sys.stderr)
-    except Exception as e:
-        cprint(f"Error: {e}", "red", file=sys.stderr)
+    # except Exception as e:
+    #     cprint(f"Error: {e}", "red", file=sys.stderr)
     finally:
         sys.stderr = orig_stdout
         f.close()

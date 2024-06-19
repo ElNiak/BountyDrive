@@ -1,11 +1,16 @@
 import csv
 import os
 import sys
-import threading
 
 from termcolor import cprint
-from utils.app_config import *
 
+import threading
+
+LOCKS = {
+    "experiment": threading.Lock(),
+    "sqli": threading.Lock(),
+    "xss": threading.Lock(),
+}
 #########################################################################################
 # File writing functions
 #########################################################################################
@@ -26,6 +31,36 @@ def get_processed_dorks(settings):
             reader = csv.DictReader(file)
             for row in reader:
                 processed_dorks.add(row["dork"])
+
+    return processed_dorks
+
+
+def get_processed_xss(settings):
+    """
+    Reads the experiment CSV file to get the list of processed dorks.
+    """
+    processed_dorks = set()
+
+    if os.path.exists(settings["xss_csv"]):
+        with open(settings["xss_csv"], mode="r", newline="") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                processed_dorks.add((row["url"], row["payload"]))
+
+    return processed_dorks
+
+
+def get_attacked_xss(settings):
+    """
+    Reads the experiment CSV file to get the list of processed dorks.
+    """
+    processed_dorks = set()
+
+    if os.path.exists(settings["xss_csv"]):
+        with open(settings["xss_csv"], mode="r", newline="") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                processed_dorks.add((row["url"], row["payload"]))
 
     return processed_dorks
 
@@ -97,11 +132,11 @@ def safe_add_result(result, settings):
                             "yes",
                             "",
                         ]  # Success and payload columns are initially empty
-                        if settings["do_dorking_github"]:
+                        if settings["do_dorking_github"] and category == "github":
                             row.append("no")
-                        if settings["do_sqli"]:
+                        if settings["do_sqli"] and category == "sqli":
                             row.append("no")
-                        if settings["do_xss"]:
+                        if settings["do_xss"] and category == "xss":
                             row.append("no")
                         writer.writerow(row)
                         cprint(
@@ -137,6 +172,47 @@ def safe_add_result(result, settings):
                 writer.writerow(row)
                 cprint(f"No URLs found for {category} dorks...", "red", file=sys.stderr)
 
+    if settings["do_xss"] and category == "xss":
+        update_xss_csv(dork_id, link_id, last_attack_id, urls, dork, settings)
+    if settings["do_sqli"] and category == "sqli":
+        update_sqli_csv(dork_id, link_id, last_attack_id, urls, dork, settings)
+
+
+def update_xss_csv(dork_id, link_id, attack_id, urls, dork, settings):
+    """
+    Update the XSS CSV file with the results.
+    """
+    with LOCKS["xss"]:
+        with open(settings["xss_csv"], mode="a", newline="") as file:
+            writer = csv.writer(file)
+            for url in urls:
+                row = [
+                    dork_id,
+                    link_id,
+                    attack_id,
+                    url,
+                    dork,
+                    "no",
+                    "",
+                    "no",
+                    "no",
+                    "no",
+                    "no",
+                ]
+                writer.writerow(row)
+
+
+def update_sqli_csv(dork_id, link_id, attack_id, urls, dork, settings):
+    """
+    Update the SQLi CSV file with the results.
+    """
+    with LOCKS["sqli"]:
+        with open(settings["sqli_csv"], mode="a", newline="") as file:
+            writer = csv.writer(file)
+            for url in urls:
+                row = [dork_id, link_id, attack_id, url, dork, "no", ""]
+                writer.writerow(row)
+
 
 def update_attack_result(
     settings, dork_id, link_id, attack_id, category, success, payload
@@ -145,6 +221,23 @@ def update_attack_result(
     Update the attack result in the CSV file.
     """
     rows = []
+    csv_headers = [
+        "dork_id",
+        "link_id",
+        "attack_id",
+        "category",
+        "url",
+        "dork",
+        "success",
+        "payload",
+    ]
+    if settings["do_dorking_github"]:
+        csv_headers.append("github_success")
+    if settings["do_sqli"]:
+        csv_headers.append("sqli_success")
+    if settings["do_xss"]:
+        csv_headers.append("xss_success")
+
     with LOCKS["experiment"]:
         with open(settings["experiment_file_path"], mode="r", newline="") as file:
             reader = csv.DictReader(file)
@@ -168,3 +261,38 @@ def update_attack_result(
             writer = csv.DictWriter(file, fieldnames=csv_headers)
             writer.writeheader()
             writer.writerows(rows)
+
+    # Update separate XSS and SQLi CSV files
+    if category == "xss" and "xss_csv" in settings:
+        update_attack_specific_csv(
+            settings["xss_csv"], dork_id, link_id, attack_id, success, payload
+        )
+    elif category == "sqli" and "sqli_csv" in settings:
+        update_attack_specific_csv(
+            settings["sqli_csv"], dork_id, link_id, attack_id, success, payload
+        )
+
+
+def update_attack_specific_csv(
+    csv_file_path, dork_id, link_id, attack_id, success, payload
+):
+    """
+    Update the specific attack CSV file (XSS or SQLi).
+    """
+    rows = []
+    with open(csv_file_path, mode="r", newline="") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            if (
+                int(row["dork_id"]) == dork_id
+                and int(row["link_id"]) == link_id
+                and int(row["attack_id"]) == attack_id
+            ):
+                row["success"] = "yes" if success else "no"
+                row["payload"] = payload
+            rows.append(row)
+
+    with open(csv_file_path, mode="w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=reader.fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)

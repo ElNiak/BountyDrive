@@ -2,6 +2,8 @@ terminal_banner
 termcolor
 tqdm
 selenium
+urllib3==1.17
+cryptography==38.0.4
 webdriver_manager
 sqlmap
 eventlet

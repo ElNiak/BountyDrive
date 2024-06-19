@@ -17,6 +17,8 @@ import time
 # 3.scraping
 import urllib
 from bs4 import BeautifulSoup
+
+# TODO USE this package or reimplement ?
 from random_user_agent.user_agent import UserAgent
 from random_user_agent.params import SoftwareName, OperatingSystem
 import requests
@@ -26,7 +28,7 @@ import json
 
 # 5.package dependencies
 import importlib.resources as pkg_resources
-from nordvpn_switcher import NordVPN_options
+from vpn_proxies.nordvpn_switcher import NordVPN_options
 
 ##################################
 # retrieve useragents for scraping#
@@ -69,7 +71,9 @@ def additional_settings_linux(additional_settings):
 def saved_settings_check():
     print("\33[33mTrying to load saved settings...\33[0m")
     try:
-        instructions = json.load(open("settings_nordvpn.txt"))
+        instructions = json.load(
+            open("vpn_proxies/nordvpn_switcher/settings_nordvpn.txt")
+        )
     except FileNotFoundError:
         raise Exception(
             "\n\nSaved settings not found.\n"
@@ -87,6 +91,8 @@ def set_headers(user_agent_rotator):
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Charset": "ISO-8859-1,utf-8;q=0.7,*;q=0.3",
         "Accept-Encoding": "none",
+        "accept-language": "en-US,en;q=0.9",
+        "cache-control": "max-age=0",
         "Accept-Language": "en-US,en;q=0.8",
         "Connection": "keep-alive",
     }

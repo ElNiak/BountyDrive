@@ -3,3 +3,10 @@ vulnerable*.txt
 potential*.txt
 *.log
 __pycache__/
+nordvpn_login.csv
+nordvpn_login_token.csv
+bounty_drive/outputs/reports/*.csv
+bounty_drive/outputs/reports/*.zip
+bounty_drive/outputs/html_google_todo/*.html
+pypy3-venv/*
+python3-venv/*

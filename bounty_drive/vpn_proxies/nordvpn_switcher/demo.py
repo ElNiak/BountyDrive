@@ -1,4 +1,4 @@
-from nordvpn_switcher import initialize_VPN, rotate_VPN
+from vpn_proxies.nordvpn_switcher import initialize_VPN, rotate_VPN
 import time
 
 ##############

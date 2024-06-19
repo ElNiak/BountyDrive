@@ -11,12 +11,12 @@ import eventlet, requests
 from termcolor import cprint
 
 from utils.app_config import USER_AGENTS
-from utils.request_manager import start_request
+from requester.request_manager import start_request
 
 # from attacks.xss.xss_config import XSS_TEST_PAYLOAD
 
 
-def waf_detector(proxies, url, mode="xss"):
+def waf_detector(proxies, url, config, mode="xss"):
     # a payload which is noisy enough to provoke the WAF
     if mode == "xss":
         noise = "<script>alert(1)</script>"
@@ -31,7 +31,15 @@ def waf_detector(proxies, url, mode="xss"):
     }
     # Opens the noise injected payload
     response = start_request(
-        proxies=proxies, url=url, params=params, headers=headers, GET=True
+        proxies=proxies,
+        base_url=url,
+        params=params,
+        headers=headers,
+        secured=True
+        if proxies and "https" in proxies and "socks" in proxies["https"]
+        else False,
+        GET=True,
+        config=config,
     )
     page = response.text
     code = str(response.status_code)
@@ -39,7 +47,7 @@ def waf_detector(proxies, url, mode="xss"):
     cprint("Waf Detector code: {}".format(code))
     cprint("Waf Detector headers:", response.headers)
 
-    waf_signatures_files = glob.glob("waf_signature/*.json", recursive=True)
+    waf_signatures_files = glob.glob("bypasser/waf_signature/*.json", recursive=True)
     bestMatch = [0, None]
     for waf_signatures_file in waf_signatures_files:
         with open(waf_signatures_file, "r") as file:
