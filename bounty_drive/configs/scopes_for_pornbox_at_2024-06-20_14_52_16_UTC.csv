@@ -1,0 +1,5 @@
+identifier,asset_type,instruction,eligible_for_bounty,eligible_for_submission,availability_requirement,confidentiality_requirement,integrity_requirement,max_severity,system_tags,created_at,updated_at
+www.pornbox.com,URL,"",true,true,high,high,high,critical,"apache, PHP, English",2022-12-08 03:43:19 UTC,2023-01-19 09:22:06 UTC
+www.analvids.com,URL,"",true,true,high,high,high,critical,,2023-11-01 13:52:18 UTC,2023-11-01 13:52:18 UTC
+www.ddfcontent.com,URL,"",true,true,,,,critical,,2024-01-11 16:20:03 UTC,2024-01-11 16:20:03 UTC
+www.pornworld.com,URL,"",true,true,,,,critical,,2024-01-11 16:22:05 UTC,2024-01-11 16:22:05 UTC

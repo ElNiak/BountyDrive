@@ -111,7 +111,7 @@ We welcome contributions from the community. To contribute:
 
 * https://github.com/Karmaz95/crimson/blob/master/words/exp/special_chars.txt
 * https://github.com/hahwul/dalfox
-* https://github.com/Raghavd3v/CRLFsuite/blob/main/crlfsuite/db/wafsignatures.json
+* https://github.com/mandiant/PwnAuth
 
 ## TODOs
 Also watch module for more specfic TODOs

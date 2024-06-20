@@ -12,6 +12,7 @@
 * https://obheda12.medium.com/gitdorker-a-new-tool-for-manual-github-dorking-and-easy-bug-bounty-wins-92a0a0a6b8d5
 * https://github.com/spekulatius/infosec-dorks
 * Use Google hacking database(https://www.exploit-db.com/google-hacking-database) for good sqli dorks.
+* https://github.com/ghostlulzhacks/waybackMachine/blob/master/waybackMachine.py
 
 ## TODOs
 

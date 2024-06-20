@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from attacks.dorks.search_engine_dorking import get_proxies_and_cycle
 from attacks.xss.xss_striker import attacker_crawler
-from reporting.results_manager import update_attack_result
+from reporting.results_manager import get_crawling_results, update_attack_result
 from vpn_proxies.proxies_manager import prepare_proxies
 from bypasser.waf_mitigation import waf_detector
 from utils.app_config import (
@@ -166,10 +166,30 @@ def launch_xss_attack(config, website_to_test):
             # TODO: use blind-xss-payload-list.txt
             # configure a domain for the attacks
 
+            website = get_crawling_results(config)
+
+            search_tasks_with_proxy = []
+            for website, domUrls, forms in website:
+                proxy = next(proxy_cycle)
+                scheme = urlparse(website).scheme
+                host = urlparse(website).netloc
+                main_url = scheme + "://" + host
+                for form, domURL in zip(forms, domUrls):
+                    search_tasks_with_proxy.append(
+                        {
+                            "main_url": main_url,
+                            "form": form,
+                            "scheme": scheme,
+                            "host": host,
+                            "domURLs": domURL,
+                            "proxy": proxy,
+                        }
+                    )
+
             if config["fuzz_xss"]:
                 raise NotImplementedError("Fuzzing is not implemented yet")
             else:
-                blindPayloads = "alert(1)"  # TODO
+                blindPayloads = "alert(1)"  # TODO read from file
                 encoding = base64 if config["encode_xss"] else False
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=number_of_worker
@@ -177,16 +197,16 @@ def launch_xss_attack(config, website_to_test):
                     future_to_search = {
                         executor.submit(
                             attacker_crawler,
-                            # scheme,
-                            # host,
-                            # main_url,
-                            form,
+                            task["scheme"],
+                            task["host"],
+                            task["main_url"],
+                            task["form"],
                             blindPayloads,
                             encoding,
                             config,
-                            next(proxy_cycle),
-                        ): form
-                        for form, domURL in zip([], [])  # TODO use domURL
+                            task["proxy"],
+                        ): task
+                        for task in search_tasks_with_proxy
                     }
                     for website in tqdm(
                         concurrent.futures.as_completed(future_to_search),

@@ -70,6 +70,7 @@ def get_processed_crawled_form_dom(settings):
     TODO: Implement this function
     Reads the experiment CSV file to get the list of processed dorks.
     """
+    processed_dorks = set()
     if os.path.exists(settings["crawl_csv"]):
         with open(settings["crawl_csv"], mode="r", newline="") as file:
             reader = csv.DictReader(file)
@@ -248,6 +249,21 @@ def save_dorking_query(result, settings):
     #     update_xss_csv(dork_id, link_id, last_attack_id, urls, dork, settings)
     # if settings["do_sqli"] and category == "sqli":
     #     update_sqli_csv(dork_id, link_id, last_attack_id, urls, dork, settings)
+
+
+def get_crawling_results(settings):
+    """
+    Reads the experiment CSV file to get the list of processed dorks.
+    """
+    crawling_results = []
+
+    if os.path.exists(settings["crawl_csv"]):
+        with open(settings["crawl_csv"], mode="r", newline="") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                crawling_results.append((row["seedUrl"], row["domURLs"], row["forms"]))
+
+    return crawling_results
 
 
 def save_crawling_query(result, settings):

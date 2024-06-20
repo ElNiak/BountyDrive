@@ -1,0 +1,15 @@
+identifier,asset_type,instruction,eligible_for_bounty,eligible_for_submission,availability_requirement,confidentiality_requirement,integrity_requirement,max_severity,system_tags,created_at,updated_at
+prod-taxexempt.att.com,URL,This is out of scope for submission. ,false,false,,,,critical,,2019-08-20 14:40:21 UTC,2023-01-04 09:50:41 UTC
+projectone.att.com,URL,This is out of scope for submission. ,false,false,,,,critical,,2019-09-19 12:48:23 UTC,2023-01-04 09:50:41 UTC
+c2m-projectone.att.com,URL,This is out of scope for submission. ,false,false,,,,critical,,2019-09-25 13:09:17 UTC,2023-01-04 09:50:41 UTC
+wf-projectone.att.com,URL,This is out of scope for submission,false,false,,,,critical,,2019-09-25 13:09:48 UTC,2023-01-04 09:50:42 UTC
+*.sky.com.mx,URL,This is out of scope for submission. ,false,false,,,,critical,,2020-01-14 15:47:26 UTC,2023-07-13 09:09:06 UTC
+accbusinesspricing.att.com,URL,This is out of scope for submission. ,false,false,,,,critical,,2020-02-07 15:38:00 UTC,2023-01-04 09:50:42 UTC
+rcloud.social,URL,This is out of scope for submission. ,false,false,,,,critical,,2020-03-27 13:07:48 UTC,2023-01-04 09:50:42 UTC
+attdashboard.wireless.att.com,URL,This is out of scope for submission. ,false,false,,,,critical,,2020-09-16 14:59:43 UTC,2023-01-04 09:50:42 UTC
+https://clec.att.com/clec/,URL,This is out of scope for submission. ,false,false,,,,critical,,2021-02-11 14:14:50 UTC,2023-07-13 09:09:14 UTC
+12.0.1.28,OTHER,This is out of scope for submission. ,false,false,,,,critical,,2021-02-11 14:18:20 UTC,2023-01-16 16:12:50 UTC
+attsuppliers.com,URL,This is out of scope for submission,false,false,,,,critical,,2022-02-18 16:12:33 UTC,2023-07-13 09:09:23 UTC
+attpurchasing.com,URL,This is out of scope for submission,false,false,,,,critical,,2022-02-18 16:14:06 UTC,2023-07-13 09:09:23 UTC
+authkeysmx01.att.com.mx,URL,"",false,false,,,,critical,,2022-02-23 21:35:31 UTC,2023-07-13 09:09:23 UTC
+Other Assets,OTHER,"",true,true,,,,critical,,2024-04-02 15:43:16 UTC,2024-04-02 15:43:16 UTC

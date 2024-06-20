@@ -78,6 +78,10 @@ def load_proxies(file="vpn_proxies/proxies/free-proxy-list.txt"):
         return [line.strip() for line in file if line.strip()]
 
 
+def remove_unavailable_proxies(proxies: List[str], config: dict) -> List[str]:
+    raise NotImplementedError("This function is not implemented yet.")
+
+
 def prepare_proxies(proxy, config):
     if proxy and "username:password" in proxy:
         nord_vpn_user_pass = random.choice(config["nord_vpn_login"])
@@ -87,6 +91,8 @@ def prepare_proxies(proxy, config):
         proxies = {"https": proxy}
 
     else:
+        if not "http" in proxy or not "socks" in proxy:
+            proxy = "http://" + proxy
         proxies = {"http": proxy, "https": proxy}
     return proxies
 

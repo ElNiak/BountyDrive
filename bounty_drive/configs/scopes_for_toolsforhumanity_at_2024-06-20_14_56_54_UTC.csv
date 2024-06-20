@@ -1,0 +1,16 @@
+identifier,asset_type,instruction,eligible_for_bounty,eligible_for_submission,availability_requirement,confidentiality_requirement,integrity_requirement,max_severity,system_tags,created_at,updated_at
+*.worldcoin.org,WILDCARD,Worldcoin Foundation-owned asset,true,true,high,high,high,critical,,2023-06-06 10:39:08 UTC,2024-02-15 19:47:41 UTC
+*.consumer.worldcoin.org,WILDCARD,World App backend. TFH-owned asset,true,true,high,high,high,critical,,2023-06-06 10:42:47 UTC,2024-02-15 19:51:14 UTC
+toolsforhumanity.com,URL,TFH-owned asset,true,true,,,,critical,,2023-11-14 11:56:06 UTC,2024-02-15 20:36:45 UTC
+getworldcoin.com,URL,Worldcoin Foundation-owned asset,true,true,,,,critical,,2023-11-14 11:57:43 UTC,2024-02-15 19:47:19 UTC
+*.worldcoin-distributors.com,WILDCARD,Worldcoin Foundation-owned asset,true,true,,,,critical,,2024-02-15 20:34:45 UTC,2024-02-15 20:35:30 UTC
+bioid-management.app,URL,TFH-owned asset,true,true,,,,critical,,2024-02-15 20:34:45 UTC,2024-02-15 20:35:04 UTC
+*.worldcoin.dev,WILDCARD,Worldcoin Foundation-owned asset,true,true,,,,critical,,2024-02-15 20:36:18 UTC,2024-02-15 20:37:22 UTC
+https://apps.apple.com/no/app/world-app-worldcoin-wallet/id1560859847,APPLE_STORE_APP_ID,TFH-owned asset,true,true,,,,critical,,2024-02-15 20:38:08 UTC,2024-02-15 20:38:08 UTC
+https://play.google.com/store/apps/details?id=com.worldcoin,GOOGLE_PLAY_APP_ID,World App for Android. TFH-owned asset,true,true,,,,critical,,2024-02-15 20:39:05 UTC,2024-02-15 20:39:05 UTC
+https://github.com/worldcoin,SOURCE_CODE,Worldcoin Foundation-owned asset,true,true,,,,critical,,2024-02-15 20:39:49 UTC,2024-02-15 20:39:49 UTC
+https://github.com/worldcoin/world-id-contracts,SMART_CONTRACT,Worldcoin Foundation-owned asset,true,true,,,,critical,,2024-02-15 20:44:35 UTC,2024-02-15 20:44:35 UTC
+https://github.com/worldcoin/world-id-state-bridge,SMART_CONTRACT,Worldcoin Foundation-owned asset,true,true,,,,critical,,2024-02-15 20:45:31 UTC,2024-02-15 20:45:31 UTC
+worldcoin.org,URL,Worldcoin Foundation-owned asset,true,true,,,,critical,,2024-02-15 20:59:06 UTC,2024-02-15 20:59:06 UTC
+*.toolsforhumanity.com,WILDCARD,TFH-owned asset,true,true,,,,critical,,2024-02-15 20:59:49 UTC,2024-02-15 20:59:49 UTC
+support.worldcoin.com,URL,"",false,false,,,,none,,2024-04-23 09:04:50 UTC,2024-04-23 09:04:50 UTC
