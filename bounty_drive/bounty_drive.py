@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from attacks.dorks.google_dorking import (
     google_search_with_proxy,
-    load_google_dorks_and_search,
+    launch_google_dorks_and_search_attack,
 )
 
 from attacks.dorks.github_dorking import *
@@ -32,10 +32,10 @@ from reporting.results_manager import (
 from vpn_proxies.proxies_manager import round_robin_proxies, setup_proxies
 from vpn_proxies.vpn_manager import setup_vpn
 
-from attacks.xss.xss import test_vulnerability_xss
+from attacks.xss.xss import launch_xss_attack
 
 from attacks.sqli.sqli_scan_config import *
-from attacks.sqli.sqli import test_vulnerability_sqli
+from attacks.sqli.sqli import launch_sqli_attack
 
 from utils.banner import *
 from utils.banner import load_animation
@@ -66,6 +66,16 @@ def read_config(file_path):
         "experiment_file_path": config["Settings"].get("experiment_file_path"),
         "max_thread": config["Settings"].getint("max_thread", 30),
         "logging": config["Settings"].get("logging", "DEBUG"),
+        "runtime_save": config["Settings"].getboolean("runtime_save"),
+        "keyboard_interrupt_save": config["Settings"].getboolean(
+            "keyboard_interrupt_save"
+        ),
+        # Bounty
+        "need_specific_user_agent": config["Bounty"].getboolean(
+            "need_specific_user_agent"
+        ),
+        "target_user_agent": config["Bounty"].get("target_user_agent"),
+        "hackerone_username": config["Bounty"].get("hackerone_username"),
         # Google Dorking
         "do_dorking_google": config["GoogleDorking"].getboolean("do_dorking_google"),
         "total_output": config["GoogleDorking"].getint("total_output"),
@@ -76,16 +86,21 @@ def read_config(file_path):
         "use_selenium": config["GoogleDorking"].getboolean("use_selenium"),
         # Github Dorking
         "do_dorking_github": config["GithubDorking"].getboolean("do_dorking_github"),
+        # Github Dorking
+        "do_dorking_shodan": config["GithubDorking"].getboolean("do_dorking_github"),
         # XSS
         "do_xss": config["XSS"].getboolean("do_xss"),
         "encode_xss": config["XSS"].getboolean("encode_xss"),
         "fuzz_xss": config["XSS"].getboolean("fuzz_xss"),
         "blind_xss": config["XSS"].getboolean("blind_xss"),
-        "do_sqli": config["SQLi"].getboolean("do_sqli"),
         # Crawling
         "do_crawl": config["crawler"].getboolean("do_crawl", True),
         "skip_dom": config["crawler"].getboolean("skip_dom", False),
         "level": config["crawler"].getint("level", 1),
+        # SQLI
+        "do_sqli": config["SQLi"].getboolean("do_sqli"),
+        # API
+        "do_api": config["API"].getboolean("do_api"),
         # Proxy
         "use_proxy": config["Proxy"].getboolean("use_proxy"),
         "use_free_proxy_file": config["Proxy"].getboolean("use_free_proxy_file"),
@@ -119,7 +134,21 @@ def read_config(file_path):
 
 def get_user_input(config_file="configs/config.ini"):
     """
-    Collect user input from configuration file.
+    Collects user input from a configuration file.
+
+    Args:
+        config_file (str): Path to the configuration file. Default is "configs/config.ini".
+
+    Returns:
+        tuple: A tuple containing the following values:
+            - config (dict): The configuration settings read from the file.
+            - last_dork_id (int): The last processed dork ID.
+            - last_link_id (int): The last processed link ID.
+            - last_attack_id (int): The last processed attack ID.
+            - categories (list): A list of categories.
+
+    Raises:
+        FileNotFoundError: If the specified configuration file does not exist.
     """
     config = read_config(config_file)
 
@@ -237,6 +266,15 @@ def get_user_input(config_file="configs/config.ini"):
 
 
 def setup_csv(config, categories):
+    """Set up the CSV file for storing experiment results.
+
+    This function creates the necessary CSV file and writes the headers based on the provided configuration.
+
+    Args:
+        config (dict): A dictionary containing the configuration settings.
+        categories (list): A list of categories to be included in the CSV headers.
+
+    """
     csv_headers = [
         "dork_id",
         "link_id",
@@ -274,6 +312,7 @@ def setup_csv(config, categories):
             "link_id",
             "attack_id",
             "url",
+            "seedUrl",
             "dork",
             "success",
             "payload",
@@ -305,6 +344,8 @@ if __name__ == "__main__":
     try:
         load_animation()
 
+        # TODO add worker/master processes to handle multiple tasks and be faster
+
         if len(sys.argv) == 2:
             (
                 config,
@@ -333,14 +374,36 @@ if __name__ == "__main__":
             cprint(
                 "\nStarting Google dorking scan phase...\n", "yellow", file=sys.stderr
             )
-            load_google_dorks_and_search(config, categories)
+            launch_google_dorks_and_search_attack(config, categories)
 
         if config["do_dorking_github"]:
             cprint(
                 "\nStarting Github dorking scan phase...\n", "yellow", file=sys.stderr
             )
             raise NotImplementedError("Github dorking scan phase not implemented yet")
-            load_github_dorks_and_search(config, categories)
+            launch_github_dorks_and_search_attack(config, categories)
+
+        if config["do_dorking_shodan"]:
+            cprint(
+                "\nStarting Shodan dorking scan phase...\n", "yellow", file=sys.stderr
+            )
+            raise NotImplementedError("Shodan dorking scan phase not implemented yet")
+            launch_shodan_dorks_and_search_attack(config, categories)
+
+        if config["do_xss"]:
+            website_to_test = get_xss_links(config)
+            cprint(
+                "\nTesting websites for XSS vulnerability...\n",
+                "yellow",
+                file=sys.stderr,
+            )
+            if not website_to_test:
+                cprint(
+                    "No websites found matching the dorks. Please adjust your search criteria.",
+                    "red",
+                    file=sys.stderr,
+                )
+            launch_xss_attack(config, website_to_test)
 
         if config["do_sqli"]:
             raise NotImplementedError("SQLi phase not implemented yet")
@@ -356,12 +419,13 @@ if __name__ == "__main__":
                     "red",
                     file=sys.stderr,
                 )
-            test_vulnerability_sqli(config)
+            launch_sqli_attack(config)
 
-        if config["do_xss"]:
-            website_to_test = get_xss_links(config)
+        if config["do_api"]:
+            raise NotImplementedError("API phase not implemented yet")
+            website_to_test = POTENTIAL_PATHS["sqli"][1]
             cprint(
-                "\nTesting websites for XSS vulnerability...\n",
+                "\nTesting websites for SQL injection vulnerability...\n",
                 "yellow",
                 file=sys.stderr,
             )
@@ -371,7 +435,7 @@ if __name__ == "__main__":
                     "red",
                     file=sys.stderr,
                 )
-            test_vulnerability_xss(config, website_to_test)
+            launch_api_attack(config)
 
         cprint(banner_terminal_res, "green", file=sys.stderr)
 
@@ -389,10 +453,11 @@ if __name__ == "__main__":
         #     )
         #     for target in VULN_PATHS["xss"][1]:
         #         cprint(target, "red", file=sys.stderr)
-    # except Exception as e:
-    #     cprint(f"Error: {e}", "red", file=sys.stderr)
+    except Exception as e:
+        cprint(f"Error: {e}", "red", file=sys.stderr)
     except KeyboardInterrupt:
         cprint("Exiting...", "red", file=sys.stderr)
+        # TODO save progress
     finally:
         sys.stderr = orig_stdout
         f.close()

@@ -28,6 +28,17 @@ def round_robin_proxies(proxies):
 
 # Function to check if a proxy is up
 def is_proxy_alive(proxy, config, retry=0):
+    """
+    Check if a proxy is alive by sending a test request to Google.
+
+    Args:
+        proxy (str): The proxy to test.
+        config (dict): Configuration settings.
+        retry (int, optional): The number of retry attempts. Defaults to 0.
+
+    Returns:
+        tuple: A tuple containing a boolean indicating if the proxy is alive and the proxy itself.
+    """
     try:
         cprint(
             f"Testing proxy {proxy}, retry n° {retry} ...",
@@ -80,7 +91,46 @@ def prepare_proxies(proxy, config):
     return proxies
 
 
+def get_proxies_and_cycle(config):
+    """Get proxies and proxy cycle.
+
+    This function retrieves the proxies from the configuration and sets up a proxy cycle.
+    If the configuration specifies the use of a proxy, it checks if there are any proxies available.
+    If no proxies are available and the use of a proxy is required, it prints an error message and exits.
+    If the use of a proxy is not required, it sets the proxies list to contain a single None value.
+    Finally, it sets up a proxy cycle using the retrieved proxies and returns both the proxies list and the proxy cycle.
+
+    Args:
+        config (dict): The configuration dictionary containing the proxy settings.
+
+    Returns:
+        tuple: A tuple containing the proxies list and the proxy cycle.
+    """
+    proxies = config["proxies"]
+    if config["use_proxy"] and len(proxies) == 0:
+        cprint(
+            f"Using proxies -> you should have at least one UP",
+            "red",
+            file=sys.stderr,
+        )
+        exit()
+
+    if not config["use_proxy"]:
+        proxies = [None]
+
+    proxy_cycle = round_robin_proxies(proxies)
+    return proxies, proxy_cycle
+
+
 def setup_proxies(config):
+    """Set up proxies based on the provided configuration.
+
+    Args:
+        config (dict): A dictionary containing the configuration options.
+
+    Returns:
+        None
+    """
     proxies = []
     if config["use_free_proxy_file"]:
         cprint("Loading proxies from file ...", "yellow", file=sys.stderr)

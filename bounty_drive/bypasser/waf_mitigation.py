@@ -7,6 +7,7 @@ import glob
 import json
 import random
 import re
+from urllib.parse import urlparse
 import eventlet, requests
 from termcolor import cprint
 
@@ -15,6 +16,19 @@ from requester.request_manager import start_request
 
 
 def waf_detector(proxies, url, config, mode="xss"):
+    """Detects Web Application Firewall (WAF) based on response analysis.
+
+    Base on SQLMap's WAF detection method.
+
+    Args:
+        proxies (dict): A dictionary containing proxy settings.
+        url (str): The URL to send the request to.
+        config (dict): A dictionary containing configuration settings.
+        mode (str, optional): The mode to use for the detection. Defaults to "xss".
+
+    Returns:
+        str: The name of the detected WAF, or None if no WAF is detected.
+    """
     # a payload which is noisy enough to provoke the WAF
     if mode == "xss":
         noise = "<script>alert(1)</script>"
@@ -101,7 +115,7 @@ def heuristic_scanner(
     if not url.endswith("/"):
         url = url + "/"
     final_url = url + payload
-    response = requester.do(
+    response = start_request.do(
         final_url,
         method,
         cookie,

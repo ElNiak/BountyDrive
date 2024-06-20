@@ -11,10 +11,17 @@ from bs4 import BeautifulSoup
 import requests
 from termcolor import cprint
 
-from attacks.dorks.github_config import GITHUB_API_URL, TOKENS_LIST
 from utils.app_config import *
 
 token_index = 0
+
+# GitHub Dorking
+GITHUB_API_URL = "https://api.github.com"
+TOKENS_LIST = ["your_github_token"]  # Add your GitHub tokens here
+DORK_LIST = ["example_dork1", "example_dork2"]  # Add your dorks here
+QUERIES_LIST = ["example_query"]  # Add your queries here
+ORGANIZATIONS_LIST = ["example_organization"]  # Add your organizations here
+USERS_LIST = ["example_user"]  # Add your users here
 
 
 def token_round_robin():
@@ -105,5 +112,5 @@ def github_search_with_proxy(dork_tuple, proxy, category, retries=3, advanced=Fa
     return category, None  # Indicate failure after retries
 
 
-# def load_github_dorks_and_search(extension=DEFAULT_EXTENSION, total_output=DEFAULT_TOTAL_OUTPUT, page_no=DEFAULT_PAGE_NO, proxies=None):
+# def launch_github_dorks_and_search_attack(extension=DEFAULT_EXTENSION, total_output=DEFAULT_TOTAL_OUTPUT, page_no=DEFAULT_PAGE_NO, proxies=None):
 #     pass

@@ -8,6 +8,14 @@ from vpn_proxies.nordvpn_switcher.nordvpn_switch import (
 
 
 def setup_vpn(config):
+    """Set up VPN based on the provided configuration.
+
+    Args:
+        config (dict): A dictionary containing the VPN configuration.
+
+    Raises:
+        NotImplementedError: Raised if NordVPN is not supported in this version.
+    """
     if config["use_nordvpn"]:
         raise NotImplementedError(
             "NordVPN is not supported in this version - Error in library"

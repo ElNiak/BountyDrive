@@ -213,6 +213,17 @@ def de_json(data):
 
 
 def handle_anchor(parent_url, url):
+    """
+    Constructs a complete URL based on the parent URL and the given URL.
+
+    Args:
+        parent_url (str): The parent URL.
+        url (str): The URL to be handled.
+
+    Returns:
+        str: The complete URL.
+
+    """
     scheme = urlparse(parent_url).scheme
     if url[:4] == "http":
         return url
@@ -230,6 +241,18 @@ def handle_anchor(parent_url, url):
 
 
 def get_params(url, data, GET):
+    """Get the parameters from the given URL and data.
+
+    This function parses the URL and data to extract the parameters and returns them as a dictionary.
+
+    Args:
+        url (str): The URL string.
+        data (str): The data string.
+        GET (str): The GET string.
+
+    Returns:
+        dict: A dictionary containing the extracted parameters.
+    """
     params = {}
     if "?" in url and "=" in url:
         data = url.split("?")[1]
@@ -272,6 +295,25 @@ def start_request(
     cookies=None,
     session=None,
 ):
+    """
+    Send a HTTP request to the specified URL.
+
+    Args:
+        proxies (dict): A dictionary of proxy settings.
+        config (dict): A dictionary of configuration settings.
+        is_json (bool, optional): Indicates whether the request data is in JSON format. Defaults to False.
+        GET (bool, optional): Indicates whether the request method is GET. Defaults to False.
+        data (dict or str, optional): The request data. Defaults to None.
+        headers (dict, optional): A dictionary of request headers. Defaults to None.
+        params (dict, optional): A dictionary of request parameters. Defaults to None.
+        base_url (str, optional): The base URL for the request. Defaults to None.
+        secured (bool, optional): Indicates whether the request should be verified using SSL/TLS. Defaults to False.
+        cookies (dict, optional): A dictionary of request cookies. Defaults to None.
+        session (object, optional): A session object to use for the request. Defaults to None.
+
+    Returns:
+        object: The response object returned by the request.
+    """
     if session:
         requester = session
     else:
@@ -328,6 +370,7 @@ def start_request(
                 )
                 time.sleep(retry_after)
             elif response.status_code == 403:
+                # TODO with headers_403_bypass()
                 cprint(
                     "WAF is dropping suspicious requests. Scanning will continue after 10 minutes.",
                     color="red",

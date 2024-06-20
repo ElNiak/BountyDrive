@@ -22,6 +22,17 @@ def is_defined(o):
 
 
 def scan(data, extractor, definitions, matcher=None):
+    """Scan the given data for potential vulnerabilities using the specified extractor and definitions.
+
+    Args:
+        data (Any): The data to be scanned.
+        extractor (Any): The extractor to be used for scanning.
+        definitions (dict): The definitions of vulnerabilities.
+        matcher (callable, optional): The matching function to be used for matching vulnerabilities. Defaults to None.
+
+    Returns:
+        list: A list of detected vulnerabilities, each represented as a dictionary with keys 'version', 'component', and 'detection'.
+    """
     matcher = matcher or _simple_match
     detected = []
     for component in definitions:
@@ -44,6 +55,15 @@ def _simple_match(regex, data):
 
 
 def _replacement_match(regex, data):
+    """Match and replace a regular expression pattern in the given data.
+
+    Args:
+        regex (str): The regular expression pattern to match and replace.
+        data (str): The data to search for the regular expression pattern.
+
+    Returns:
+        str: The replaced string if a match is found, otherwise None.
+    """
     try:
         regex = de_json(regex)
         group_parts_of_regex = r"^\/(.*[^\\])\/([^\/]+)\/$"
@@ -75,6 +95,19 @@ def _scanhash(hash, definitions):
 
 
 def check(results, definitions):
+    """Check for vulnerabilities in the given results.
+
+    This function iterates over the results and checks if each result has any vulnerabilities
+    based on the definitions provided.
+
+    Args:
+        results (list): A list of results to check for vulnerabilities.
+        definitions (dict): A dictionary containing definitions of vulnerabilities.
+
+    Returns:
+        list: A list of results with vulnerabilities appended to each result.
+
+    """
     for r in results:
         result = r
 
@@ -173,6 +206,28 @@ def scan_file_content(content, definitions):
 
 
 def main_scanner(uri, response):
+    """Scan the given URI and file content for XSS vulnerabilities.
+
+    This function takes a URI and its corresponding response content as input,
+    and scans them for XSS vulnerabilities using the definitions provided in
+    the 'attacks/xss/definitions.json' file.
+
+    Args:
+        uri (str): The URI to be scanned for XSS vulnerabilities.
+        response (str): The response content associated with the URI.
+
+    Returns:
+        dict: A dictionary containing the scan result. The dictionary has the
+        following keys:
+            - 'component': The component associated with the first detected
+              vulnerability.
+            - 'version': The version associated with the first detected
+              vulnerability.
+            - 'vulnerabilities': A list of dictionaries, where each dictionary
+              represents a detected vulnerability. Each vulnerability dictionary
+              contains information about the vulnerability, such as its type,
+              description, and impact.
+    """
     definitions = json.loads("attacks/xss/definitions.json")
     uri_scan_result = scan_uri(uri, definitions)
     filecontent = response
@@ -199,6 +254,17 @@ def main_scanner(uri, response):
 
 
 def retire_js(url, response, config, proxies):
+    """Retires JavaScript code from the given URL and performs vulnerability scanning.
+
+    Args:
+        url (str): The URL to retire JavaScript code from.
+        response (str): The response received from the URL.
+        config (dict): Configuration settings for the scanning process.
+        proxies (dict): Proxy settings for the request.
+
+    Returns:
+        None
+    """
     scripts = js_extractor(response)
     cprint(
         "Extracted %i scripts from %s" % (len(scripts), url),

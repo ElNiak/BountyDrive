@@ -6,6 +6,9 @@ from termcolor import cprint
 
 import threading
 
+google_dorking_results = []
+xss_attack_results = []
+
 LOCKS = {
     "experiment": threading.Lock(),
     "sqli": threading.Lock(),
@@ -20,6 +23,15 @@ LOCKS = {
 # TODO make more modular
 
 
+def write_xss_vectors(vectors, filename):
+    with LOCKS["xss"]:
+        with open(filename, "w") as f:
+            for vs in vectors.values():
+                for v in vs:
+                    f.write("{}\n".format(v))
+        cprint("Written payloads to file", "green", file=sys.stderr)
+
+
 def get_processed_dorks(settings):
     """
     Reads the experiment CSV file to get the list of processed dorks.
@@ -31,6 +43,22 @@ def get_processed_dorks(settings):
             reader = csv.DictReader(file)
             for row in reader:
                 processed_dorks.add(row["dork"])
+
+    return processed_dorks
+
+
+def get_processed_xss_crawled(settings):
+    """
+    TODO: Implement this function
+    Reads the experiment CSV file to get the list of processed dorks.
+    """
+    processed_dorks = set()
+
+    if os.path.exists(settings["xss_csv"]):
+        with open(settings["xss_csv"], mode="r", newline="") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                processed_dorks.add(row["seedUrl"])
 
     return processed_dorks
 
@@ -101,7 +129,7 @@ def get_last_processed_ids(settings):
 
 
 # Thread-safe addition to results lists
-def safe_add_result(result, settings):
+def save_dorking_query(result, settings):
     """
     Safely adds results to the single experiment CSV file with tracking IDs.
     """

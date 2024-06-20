@@ -96,7 +96,7 @@ def test_sqli_with_proxy(url_proxy):
     return url, vuln  # Error or can't determine
 
 
-def test_vulnerability_sqli(proxies):
+def launch_sqli_attack(proxies):
     """
     Test a list of websites for SQL injection vulnerability using multithreading and proxies.
     """
