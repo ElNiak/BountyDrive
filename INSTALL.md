@@ -1,5 +1,13 @@
 # Installation
 
+## Package
+
+```bash
+# For reCAPTCHA
+sudo apt-get install portaudio19-dev
+
+```
+
 ## Pre-Commit
 
 ```bash

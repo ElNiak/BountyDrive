@@ -1,5 +1,6 @@
 import concurrent.futures
 import copy
+import os
 import random
 import re
 import sys
@@ -7,8 +8,8 @@ import glob
 from urllib.parse import unquote, urlparse
 import bs4
 from termcolor import cprint
-from tqdm import tqdm
 from fuzzywuzzy import fuzz
+from bypasser.waf_mitigation import waf_detector
 from reporting.results_manager import write_xss_vectors
 from vpn_proxies.proxies_manager import prepare_proxies
 
@@ -259,6 +260,7 @@ xsschecker = "v3dm0s"  # A non malicious string to check for reflections and stu
 
 checkedForms = {}  # Forms that have been checked
 
+
 # Load proxies from file
 def load_xss_payload():
     """_summary_
@@ -480,6 +482,7 @@ def zetanize(response):
 
 def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
     """Crawls a website to find forms and links for XSS vulnerability testing.
+    # TODO update to crawl also for sqli
 
     Args:
         seedUrl (str): The starting URL for crawling.
@@ -533,6 +536,7 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
             "DNT": "1",
             "Upgrade-Insecure-Requests": "1",
         }
+
         # TODO add session
         proxies = prepare_proxies(proxy, config)
         cprint(
@@ -1319,7 +1323,7 @@ def generator(occurences, response):
 
 
 def attacker_crawler(
-    scheme, host, main_url, form, blindPayload, encoding, config, proxy
+    scheme, host, main_url, form, blindPayloads, encoding, config, proxy
 ):
     """Attacks a web application by crawling and testing XSS vulnerabilities.
 
@@ -1328,7 +1332,7 @@ def attacker_crawler(
         host (str): The host of the target web application.
         main_url (str): The main URL of the target web application.
         form (dict): The form data of the target web application.
-        blindPayload (str): The blind payload to test for blind XSS vulnerabilities.
+        blindPayloads (str): The blind payload to test for blind XSS vulnerabilities.
         encoding (str): The encoding to use for the payloads.
         config (dict): The configuration settings for the attack.
         proxy (str): The proxy server to use for the attack.
@@ -1359,6 +1363,20 @@ def attacker_crawler(
                             paramsCopy = copy.deepcopy(paramData)
                             paramsCopy[paramName] = xsschecker
 
+                            is_waffed = waf_detector(proxy, url, config)
+                            if is_waffed:
+                                cprint(
+                                    "WAF detected: %s%s%s" % (green, is_waffed, end),
+                                    "red",
+                                    file=sys.stderr,
+                                )
+                            else:
+                                cprint(
+                                    "WAF Status: %sOffline%s" % (green, end),
+                                    "green",
+                                    file=sys.stderr,
+                                )
+
                             headers = {
                                 "User-Agent": random.choice(USER_AGENTS),
                                 "X-HackerOne-Research": "elniak",
@@ -1388,6 +1406,21 @@ def attacker_crawler(
                             )
 
                             occurences = html_xss_parser(response, encoding)
+                            cprint(
+                                "Scan occurences: {}".format(occurences),
+                                "green",
+                                file=sys.stderr,
+                            )
+                            if not occurences:
+                                cprint("No reflection found", "yellow", file=sys.stderr)
+                                continue
+                            else:
+                                cprint(
+                                    "Reflections found: %i" % len(occurences),
+                                    "green",
+                                    file=sys.stderr,
+                                )
+                            cprint("Analysing reflections:", "green", file=sys.stderr)
                             positions = occurences.keys()
                             occurences = check_filter_efficiency(
                                 config,
@@ -1398,44 +1431,118 @@ def attacker_crawler(
                                 occurences,
                                 encoding,
                             )
+
+                            cprint(
+                                "Scan efficiencies: {}".format(occurences),
+                                "green",
+                                file=sys.stderr,
+                            )
+                            cprint("Generating payloads:", "green", file=sys.stderr)
+
                             vectors = generator(occurences, response.text)
+                            write_xss_vectors(
+                                vectors,
+                                os.path.join(
+                                    config["experiment_folder"], "xss_vectors.txt"
+                                ),
+                            )
                             if vectors:
                                 for confidence, vects in vectors.items():
                                     try:
                                         payload = list(vects)[0]
                                         cprint(
-                                            "[Vulnerable webpage] - %s%s%s"
+                                            "[Potential Vulnerable Webpage] - %s%s%s"
                                             % (green, url, end),
                                             color="green",
                                             file=sys.stderr,
                                         )
                                         cprint(
-                                            "Vector for %s%s%s: %s"
+                                            "\tVector for %s%s%s: %s"
                                             % (green, paramName, end, payload),
                                             color="green",
                                             file=sys.stderr,
                                         )
-                                        # TODO add to report more cleanly
-                                        write_xss_vectors(
-                                            vectors, "outputs/xss_vectors.txt"
+                                        cprint(
+                                            "\tConfidence: %s%s%s"
+                                            % (green, confidence, end),
+                                            color="green",
+                                            file=sys.stderr,
                                         )
-                                        # TODO open selenium and perform attack to take screenshot
+                                        # Only test most confident payloads ?
+                                        # TODO perform the attacks
                                         break
                                     except IndexError:
                                         pass
-                            if config["blind_xss"] and blindPayload:
-                                paramsCopy[paramName] = blindPayload
-                                cprint(
-                                    f"Testing attack for GET with blind payload - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
-                                    "yellow",
-                                    file=sys.stderr,
-                                )
-                                proxies = prepare_proxies(proxy, config)
-                                response = start_request(
-                                    proxies=proxies,
-                                    config=config,
-                                    base_url=url,
-                                    params=paramsCopy,
-                                    headers=headers,
-                                    GET=GET,
-                                )
+                            if config["blind_xss"] and blindPayloads:
+                                for blindPayload in blindPayloads:
+                                    paramsCopy[paramName] = blindPayload
+                                    cprint(
+                                        f"Testing attack for GET with blind payload - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
+                                        "yellow",
+                                        file=sys.stderr,
+                                    )
+                                    proxies = prepare_proxies(proxy, config)
+                                    response = start_request(
+                                        proxies=proxies,
+                                        config=config,
+                                        base_url=url,
+                                        params=paramsCopy,
+                                        headers=headers,
+                                        GET=GET,
+                                    )
+
+
+# def xss_attack(
+#     config,
+#     proxy,
+#     vects,
+#     url,
+#     params,
+#     GET,
+#     environment,
+#     positions,
+#     encoding,
+#     skip=False,
+#     minEfficiency=95,
+#     confidence=10,
+# ):
+#     for vec in vects:
+#         if config["update_path"]:
+#             vect = vect.replace("/", "%2F")
+#         loggerVector = vect
+#         progress += 1
+#         logger.run("Progress: %i/%i\r" % (progress, total))
+#         if not GET:
+#             vect = unquote(vect)
+
+#         efficiencies = checker(
+#             config,
+#             proxy,
+#             url,
+#             params,
+#             GET,
+#             environment,
+#             positions,
+#             encoding,
+#         )
+#         if not efficiencies:
+#             for i in range(len(occurences)):
+#                 efficiencies.append(0)
+
+#         bestEfficiency = max(efficiencies)
+#         if bestEfficiency == 100 or (vect[0] == "\\" and bestEfficiency >= 95):
+#             logger.red_line()
+#             logger.good("Payload: %s" % loggerVector)
+#             logger.info("Efficiency: %i" % bestEfficiency)
+#             logger.info("Confidence: %i" % confidence)
+#             if not skip:
+#                 choice = input(
+#                     "%s Would you like to continue scanning? [y/N] " % que
+#                 ).lower()
+#             if skip or choice != "y":
+#                 return target, loggerVector
+#         elif bestEfficiency > minEfficiency:
+#             logger.red_line()
+#             logger.good("Payload: %s" % loggerVector)
+#             logger.info("Efficiency: %i" % bestEfficiency)
+#             logger.info("Confidence: %i" % confidence)

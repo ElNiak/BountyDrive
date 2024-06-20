@@ -7,10 +7,12 @@ from termcolor import cprint
 import threading
 
 google_dorking_results = []
+crawling_results = []
 xss_attack_results = []
 
 LOCKS = {
-    "experiment": threading.Lock(),
+    "dorking": threading.Lock(),
+    "crawl": threading.Lock(),
     "sqli": threading.Lock(),
     "xss": threading.Lock(),
 }
@@ -38,8 +40,8 @@ def get_processed_dorks(settings):
     """
     processed_dorks = set()
 
-    if os.path.exists(settings["experiment_file_path"]):
-        with open(settings["experiment_file_path"], mode="r", newline="") as file:
+    if os.path.exists(settings["dorking_csv"]):
+        with open(settings["dorking_csv"], mode="r", newline="") as file:
             reader = csv.DictReader(file)
             for row in reader:
                 processed_dorks.add(row["dork"])
@@ -47,18 +49,32 @@ def get_processed_dorks(settings):
     return processed_dorks
 
 
-def get_processed_xss_crawled(settings):
+def get_processed_crawled(settings):
     """
     TODO: Implement this function
     Reads the experiment CSV file to get the list of processed dorks.
     """
     processed_dorks = set()
 
-    if os.path.exists(settings["xss_csv"]):
-        with open(settings["xss_csv"], mode="r", newline="") as file:
+    if os.path.exists(settings["crawl_csv"]):
+        with open(settings["crawl_csv"], mode="r", newline="") as file:
             reader = csv.DictReader(file)
             for row in reader:
                 processed_dorks.add(row["seedUrl"])
+
+    return processed_dorks
+
+
+def get_processed_crawled_form_dom(settings):
+    """
+    TODO: Implement this function
+    Reads the experiment CSV file to get the list of processed dorks.
+    """
+    if os.path.exists(settings["crawl_csv"]):
+        with open(settings["crawl_csv"], mode="r", newline="") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                processed_dorks.add((row["seedUrl"]))
 
     return processed_dorks
 
@@ -93,14 +109,27 @@ def get_attacked_xss(settings):
     return processed_dorks
 
 
+def get_links(settings):
+    links = set()
+    if os.path.exists(settings["dorking_csv"]):
+        with open(settings["dorking_csv"], mode="r", newline="") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                if row["category"] == "xss" and settings["do_xss"]:
+                    links.add(row["url"])
+                elif row["category"] == "sqli" and settings["do_sqli"]:
+                    links.add(row["url"])
+    return links
+
+
 def get_xss_links(settings):
     """
     Reads the experiment CSV file to get the list of XSS-related links.
     """
     xss_links = set()
 
-    if os.path.exists(settings["experiment_file_path"]):
-        with open(settings["experiment_file_path"], mode="r", newline="") as file:
+    if os.path.exists(settings["dorking_csv"]):
+        with open(settings["dorking_csv"], mode="r", newline="") as file:
             reader = csv.DictReader(file)
             for row in reader:
                 if row["category"] == "xss":
@@ -117,8 +146,8 @@ def get_last_processed_ids(settings):
     last_link_id = 0
     last_attack_id = 0
 
-    if os.path.exists(settings["experiment_file_path"]):
-        with open(settings["experiment_file_path"], mode="r", newline="") as file:
+    if os.path.exists(settings["dorking_csv"]):
+        with open(settings["dorking_csv"], mode="r", newline="") as file:
             reader = csv.DictReader(file)
             for row in reader:
                 last_dork_id = int(row["dork_id"])
@@ -128,14 +157,28 @@ def get_last_processed_ids(settings):
     return last_dork_id, last_link_id, last_attack_id
 
 
+def get_last_processed_crawl_ids(settings):
+    """
+    Get the last processed dork_id, link_id, and attack_id from the CSV file.
+    """
+    last_crawl_id = 0
+
+    if os.path.exists(settings["crawl_csv"]):
+        with open(settings["crawl_csv"], mode="r", newline="") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                last_crawl_id = int(row["crawl_id"])
+    return last_crawl_id
+
+
 # Thread-safe addition to results lists
 def save_dorking_query(result, settings):
     """
     Safely adds results to the single experiment CSV file with tracking IDs.
     """
     dork_id, category, urls, dork = result
-    with LOCKS["experiment"]:
-        with open(settings["experiment_file_path"], mode="a", newline="") as file:
+    with LOCKS["dorking"]:
+        with open(settings["dorking_csv"], mode="a", newline="") as file:
             writer = csv.writer(file)
             _, link_id, last_attack_id = get_last_processed_ids(settings)
             link_id += 1  # Increment link_id for next link
@@ -160,12 +203,12 @@ def save_dorking_query(result, settings):
                             "yes",
                             "",
                         ]  # Success and payload columns are initially empty
-                        if settings["do_dorking_github"] and category == "github":
-                            row.append("no")
-                        if settings["do_sqli"] and category == "sqli":
-                            row.append("no")
-                        if settings["do_xss"] and category == "xss":
-                            row.append("no")
+                        # if settings["do_dorking_github"] and category == "github":
+                        #     row.append("no")
+                        # if settings["do_sqli"] and category == "sqli":
+                        #     row.append("no")
+                        # if settings["do_xss"] and category == "xss":
+                        #     row.append("no")
                         writer.writerow(row)
                         cprint(
                             f"Added {url} to experiment list under category {category}",
@@ -179,6 +222,7 @@ def save_dorking_query(result, settings):
                             "red",
                             file=sys.stderr,
                         )
+                link_id += 1  # Increment link_id for next link
             else:
                 # Write a row indicating no URLs found for this dork
                 row = [
@@ -191,19 +235,63 @@ def save_dorking_query(result, settings):
                     "no",
                     "",
                 ]  # No URLs found
-                if settings["do_dorking_github"]:
-                    row.append("no")
-                if settings["do_sqli"]:
-                    row.append("no")
-                if settings["do_xss"]:
-                    row.append("no")
+                # if settings["do_dorking_github"]:
+                #     row.append("no")
+                # if settings["do_sqli"]:
+                #     row.append("no")
+                # if settings["do_xss"]:
+                #     row.append("no")
                 writer.writerow(row)
                 cprint(f"No URLs found for {category} dorks...", "red", file=sys.stderr)
 
-    if settings["do_xss"] and category == "xss":
-        update_xss_csv(dork_id, link_id, last_attack_id, urls, dork, settings)
-    if settings["do_sqli"] and category == "sqli":
-        update_sqli_csv(dork_id, link_id, last_attack_id, urls, dork, settings)
+    # if settings["do_xss"] and category == "xss":
+    #     update_xss_csv(dork_id, link_id, last_attack_id, urls, dork, settings)
+    # if settings["do_sqli"] and category == "sqli":
+    #     update_sqli_csv(dork_id, link_id, last_attack_id, urls, dork, settings)
+
+
+def save_crawling_query(result, settings):
+    """
+    Safely adds results to the single experiment CSV file with tracking IDs.
+    """
+    seedUrl, forms_temps, domURLs_temps = result
+    with LOCKS["crawl"]:
+        with open(settings["crawl_csv"], mode="a", newline="") as file:
+            writer = csv.writer(file)
+            crawl_id = get_last_processed_crawl_ids(settings)
+            crawl_id += 1  # Increment link_id for next link
+            if seedUrl:
+                cprint(
+                    f"Adding {len(seedUrl)} URLs to experiment list...",
+                    "blue",
+                    file=sys.stderr,
+                )
+                row = [
+                    crawl_id,
+                    seedUrl,
+                    "yes",
+                    domURLs_temps,
+                    forms_temps,
+                ]  # Success and payload columns are initially empty
+                writer.writerow(row)
+                cprint(
+                    f"Added {domURLs_temps} & {forms_temps} to experiment list under category crawl DOM",
+                    "blue",
+                    file=sys.stderr,
+                )
+            else:
+                # Write a row indicating no URLs found for this dork
+                row = [
+                    crawl_id,
+                    seedUrl,
+                    "no",
+                    "no",
+                    "no",
+                ]  # No URLs found
+                writer.writerow(row)
+                cprint(
+                    f"No URLs found for {seedUrl} crawling...", "red", file=sys.stderr
+                )
 
 
 def update_xss_csv(dork_id, link_id, attack_id, urls, dork, settings):
@@ -266,8 +354,8 @@ def update_attack_result(
     if settings["do_xss"]:
         csv_headers.append("xss_success")
 
-    with LOCKS["experiment"]:
-        with open(settings["experiment_file_path"], mode="r", newline="") as file:
+    with LOCKS["dorking"]:
+        with open(settings["dorking_csv"], mode="r", newline="") as file:
             reader = csv.DictReader(file)
             for row in reader:
                 if (
@@ -285,7 +373,7 @@ def update_attack_result(
                         row["xss_success"] = "yes" if success else "no"
                 rows.append(row)
 
-        with open(settings["experiment_file_path"], mode="w", newline="") as file:
+        with open(settings["dorking_csv"], mode="w", newline="") as file:
             writer = csv.DictWriter(file, fieldnames=csv_headers)
             writer.writeheader()
             writer.writerows(rows)

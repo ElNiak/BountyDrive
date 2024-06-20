@@ -2,6 +2,25 @@
 # Global variables
 #########################################################################################
 
+from termcolor import cprint
+import urllib3
+
+# TODO
+# def integrity_check(url=MD5_CHECKSUM_URL):
+#     """ Check the integrity of the application """
+#     if open("{}/docs/checksum.md5".format(PATH)).read() == urllib3.urlopen(url).read():
+#         pass
+#     else:
+#         checksum_fail = "MD5 sums did not match from origin master, "
+#         checksum_fail += "integrity check has failed, this could be because "
+#         checksum_fail += "there is a new version available."
+#         cprint(checksum_fail)
+#         update = prompt("Would you like to update to the latest version[y/N]: ")
+#         if update.upper().startswith("Y"):
+#             update_pybelt()
+#         else:
+#             pass
+
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15",

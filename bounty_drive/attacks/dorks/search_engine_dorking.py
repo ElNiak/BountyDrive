@@ -488,17 +488,25 @@ def launch_google_dorks_and_search_attack(config, categories):
                 unit="site",
             ):
                 future.result()
+
+        cprint(
+            f"Saving dorks - Total number of dorks processed: {len(google_dorking_results)}",
+            "green",
+            file=sys.stderr,
+        )
+        for result, config in google_dorking_results:
+            save_dorking_query(result, config)
     except KeyboardInterrupt:
         cprint(
             "Process interrupted by user during google dorking phase ... Saving results",
             "red",
             file=sys.stderr,
         )
-        concurrent.futures.thread._threads_queues.clear()
+        # concurrent.futures.thread._threads_queues.clear()
         # https://stackoverflow.com/questions/49992329/the-workers-in-threadpoolexecutor-is-not-really-daemon
         for result, config in google_dorking_results:
             save_dorking_query(result, config)
-        quit()
+        exit()
     except Exception as e:
         cprint(f"Error searching for dorks: {e}", "red", file=sys.stderr)
         raise e

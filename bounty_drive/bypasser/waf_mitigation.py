@@ -7,10 +7,12 @@ import glob
 import json
 import random
 import re
+import sys
 from urllib.parse import urlparse
 import eventlet, requests
 from termcolor import cprint
 
+from vpn_proxies.proxies_manager import prepare_proxies
 from utils.app_config import USER_AGENTS
 from requester.request_manager import start_request
 
@@ -40,7 +42,16 @@ def waf_detector(proxies, url, config, mode="xss"):
     headers = {
         "User-Agent": random.choice(USER_AGENTS),
         "X-HackerOne-Research": "elniak",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip,deflate",
+        "accept-language": "en-US,en;q=0.9",
+        "cache-control": "max-age=0",
+        "Connection": "close",
+        "DNT": "1",
+        "Upgrade-Insecure-Requests": "1",
     }
+    proxies = prepare_proxies(proxies, config)
     # Opens the noise injected payload
     response = start_request(
         proxies=proxies,
@@ -52,12 +63,13 @@ def waf_detector(proxies, url, config, mode="xss"):
         else False,
         GET=True,
         config=config,
+        bypassed_403=True,
     )
     page = response.text
     code = str(response.status_code)
     headers = str(response.headers)
-    cprint("Waf Detector code: {}".format(code))
-    cprint("Waf Detector headers:", response.headers)
+    cprint("Waf Detector code: {}".format(code), "blue", file=sys.stderr)
+    cprint("Waf Detector headers:", response.headers, "blue", file=sys.stderr)
 
     waf_signatures_files = glob.glob("bypasser/waf_signature/*.json", recursive=True)
     bestMatch = [0, None]
@@ -92,49 +104,49 @@ def waf_detector(proxies, url, config, mode="xss"):
             return None
 
 
-def heuristic_scanner(
-    url,
-    payload,
-    method,
-    cookie,
-    headers,
-    timeout,
-    ssl,
-    data,
-    verbose,
-    silent,
-    stable,
-    delay,
-):
-    """
-    A basic scan to check if the URL is vulnerable or not
-    """
-    url = url.strip()
-    scheme, host = urlparse(url).scheme, urlparse(url).netloc
-    url = scheme + "://" + host
-    if not url.endswith("/"):
-        url = url + "/"
-    final_url = url + payload
-    response = start_request.do(
-        final_url,
-        method,
-        cookie,
-        headers,
-        timeout,
-        ssl,
-        data,
-        verbose,
-        silent,
-        stable,
-        delay,
-    )
-    try:
-        code, rheaders = response[1], str(response[2])
-        if not int(code) >= 400:
-            if "nefcore" and "crlfsuite" in rheaders:
-                heuristic_result.add(final_url)
-    except TypeError:
-        pass
+# def heuristic_scanner(
+#     url,
+#     payload,
+#     method,
+#     cookie,
+#     headers,
+#     timeout,
+#     ssl,
+#     data,
+#     verbose,
+#     silent,
+#     stable,
+#     delay,
+# ):
+#     """
+#     A basic scan to check if the URL is vulnerable or not
+#     """
+#     url = url.strip()
+#     scheme, host = urlparse(url).scheme, urlparse(url).netloc
+#     url = scheme + "://" + host
+#     if not url.endswith("/"):
+#         url = url + "/"
+#     final_url = url + payload
+#     response = start_request.do(
+#         final_url,
+#         method,
+#         cookie,
+#         headers,
+#         timeout,
+#         ssl,
+#         data,
+#         verbose,
+#         silent,
+#         stable,
+#         delay,
+#     )
+#     try:
+#         code, rheaders = response[1], str(response[2])
+#         if not int(code) >= 400:
+#             if "nefcore" and "crlfsuite" in rheaders:
+#                 heuristic_result.add(final_url)
+#     except TypeError:
+#         pass
 
 
 # https://github.com/MichaelStott/CRLF-Injection-Scanner/blob/master/scanner.py#L28

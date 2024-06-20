@@ -294,6 +294,7 @@ def start_request(
     secured=False,
     cookies=None,
     session=None,
+    bypassed_403=False,
 ):
     """
     Send a HTTP request to the specified URL.
@@ -371,12 +372,33 @@ def start_request(
                 time.sleep(retry_after)
             elif response.status_code == 403:
                 # TODO with headers_403_bypass()
-                cprint(
-                    "WAF is dropping suspicious requests. Scanning will continue after 10 minutes.",
-                    color="red",
-                    file=sys.stderr,
-                )
-                time.sleep(config["waf_delay"])
+                if not bypassed_403:
+                    cprint(
+                        "403 Forbidden - Trying to bypass ...",
+                        "yellow",
+                        file=sys.stderr,
+                    )
+                    delay = random.uniform(
+                        config["current_delay"] - 5, config["current_delay"] + 5
+                    )
+                    time.sleep(delay)  # Wait before retrying
+                    response = start_request(
+                        proxies=proxies,
+                        base_url=base_url,
+                        params=params,
+                        headers=headers_403_bypass(),
+                        secured=secured,
+                        GET=GET,
+                        config=config,
+                        bypassed_403=True,
+                    )
+                else:
+                    cprint(
+                        "WAF is dropping suspicious requests. Scanning will continue after 10 minutes.",
+                        color="red",
+                        file=sys.stderr,
+                    )
+                    time.sleep(config["waf_delay"])
             else:
                 cprint(
                     f"Error in request ... - status code = {response.status_code}",
