@@ -5,8 +5,10 @@ import random
 import re
 import sys
 import glob
+import threading
 from urllib.parse import unquote, urlparse
 import bs4
+import html_similarity
 from termcolor import cprint
 from fuzzywuzzy import fuzz
 from bypasser.waf_mitigation import waf_detector
@@ -480,7 +482,12 @@ def zetanize(response):
     return forms
 
 
-def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
+processed = set()  # urls that have been crawled
+processed_content = {}
+lock_processed = threading.Lock()
+
+
+def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl, threshold=0.9):
     """Crawls a website to find forms and links for XSS vulnerability testing.
     # TODO update to crawl also for sqli
 
@@ -494,7 +501,6 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
     """
 
     forms = []  # web forms
-    processed = set()  # urls that have been crawled
     storage = set()  # urls that belong to the target i.e. in-scope
     schema = urlparse(seedUrl).scheme  # extract the scheme e.g. http or https
     host = urlparse(seedUrl).netloc  # extract the host e.g. example.com
@@ -508,7 +514,8 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
         Args:
             target (_type_): _description_
         """
-        processed.add(target)
+        with lock_processed:
+            processed.add(target)
         printableTarget = "/".join(target.split("/")[3:])
         if len(printableTarget) > 40:
             printableTarget = printableTarget[-40:]
@@ -530,7 +537,6 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
             "Accept-Encoding": "gzip,deflate",
-            "accept-language": "en-US,en;q=0.9",
             "cache-control": "max-age=0",
             "Connection": "close",
             "DNT": "1",
@@ -563,6 +569,21 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
         else:
             response = ""
 
+        with lock_processed:
+            for p in processed_content:
+                if processed_content[p] and response:
+                    similarity = html_similarity.structural_similarity(
+                        processed_content[p], response
+                    )
+                    if similarity > threshold:
+                        cprint(
+                            f"Skipping already processed URL: {target} - similarity ratio: {similarity} with {p}",
+                            "blue",
+                            file=sys.stderr,
+                        )
+                        return
+            processed_content[target] = response
+
         retire_js(url, response, config, proxies)
 
         if not config["skip_dom"]:
@@ -577,8 +598,18 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
                     color="green",
                     file=sys.stderr,
                 )
-                for line in highlighted:
-                    cprint(line, color="green", file=sys.stderr)
+                with lock_processed:
+                    with open(
+                        os.path.join(
+                            config["experiment_folder"], "xss_dom_vectors.txt"
+                        ),
+                        "a",
+                    ) as file:
+                        file.write("URL: " + url + "\n")
+                        for line in highlighted:
+                            cprint(line, color="green", file=sys.stderr)
+                            file.write(line + "\n")
+                        file.write("\n")
 
         forms.append(zetanize(response))
 
@@ -621,7 +652,8 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
 
     try:
         for x in range(config["level"]):
-            urls = storage - processed
+            with lock_processed:
+                urls = storage - processed
             # urls to crawl = all urls - urls that have been crawled
 
             if seedUrl in processed_xss_photon_crawl:
@@ -631,7 +663,7 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
                     "yellow",
                     file=sys.stderr,
                 )
-                return [forms, processed]
+                return [forms, checkedDOMs, seedUrl]
 
             cprint(
                 "Crawling %s urls for forms and links\r" % len(urls),
@@ -657,8 +689,8 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl):
             # for i in concurrent.futures.as_completed(futures):
             #     pass
     except KeyboardInterrupt:
-        return [forms, processed]
-    return [forms, processed]
+        return [forms, checkedDOMs, seedUrl]
+    return [forms, checkedDOMs, seedUrl]
 
 
 def html_xss_parser(response, encoding):
@@ -835,7 +867,6 @@ def checker(config, proxy, url, params, GET, payload, positions, encoding):
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip,deflate",
-        "accept-language": "en-US,en;q=0.9",
         "cache-control": "max-age=0",
         "Connection": "close",
         "DNT": "1",
@@ -1338,6 +1369,7 @@ def attacker_crawler(
         proxy (str): The proxy server to use for the attack.
     """
     if form:
+        cprint(f"Attacking forms: {form}", "green", file=sys.stderr)
         for each in form.values():
             url = each["action"]
             if url:
@@ -1412,11 +1444,13 @@ def attacker_crawler(
                                 file=sys.stderr,
                             )
                             if not occurences:
-                                cprint("No reflection found", "yellow", file=sys.stderr)
+                                cprint(
+                                    "No XSS reflection found", "yellow", file=sys.stderr
+                                )
                                 continue
                             else:
                                 cprint(
-                                    "Reflections found: %i" % len(occurences),
+                                    "XSS reflections found: %i" % len(occurences),
                                     "green",
                                     file=sys.stderr,
                                 )
@@ -1440,12 +1474,13 @@ def attacker_crawler(
                             cprint("Generating payloads:", "green", file=sys.stderr)
 
                             vectors = generator(occurences, response.text)
-                            write_xss_vectors(
-                                vectors,
-                                os.path.join(
-                                    config["experiment_folder"], "xss_vectors.txt"
-                                ),
-                            )
+                            with lock_processed:
+                                write_xss_vectors(
+                                    vectors,
+                                    os.path.join(
+                                        config["experiment_folder"], "xss_vectors.txt"
+                                    ),
+                                )
                             if vectors:
                                 for confidence, vects in vectors.items():
                                     try:
@@ -1489,6 +1524,11 @@ def attacker_crawler(
                                         params=paramsCopy,
                                         headers=headers,
                                         GET=GET,
+                                    )
+                                    cprint(
+                                        "Response: %s" % response.text,
+                                        "green",
+                                        file=sys.stderr,
                                     )
 
 

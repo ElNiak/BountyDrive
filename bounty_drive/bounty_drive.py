@@ -160,8 +160,8 @@ def get_user_input(config_file="configs/config.ini"):
     setup_experiment_folder(config, categories)
 
     cprint(
-        f"-Extension: {config['extension']}\n-Total Output: {config['total_output']}\n-Page No: {config['page_no']}\n-Do Google Dorking: {config['do_dorking_google']}\n-Do Github Dorking {config['do_dorking_github']}\n-Do XSS: {config['do_xss']}\n-Do SQLi: {config['do_sqli']},\n Domain: {config['subdomain']}\n-Use Proxy: {config['use_proxy']}",
-        "green",
+        f"-Extension: {config['extension']}\n-Total Output: {config['total_output']}\n-Page No: {config['page_no']}\n-Do Google Dorking: {config['do_dorking_google']}\n-Do Github Dorking {config['do_dorking_github']}\n-Do XSS: {config['do_xss']}\n-Do SQLi: {config['do_sqli']},\n -Domain: {config['subdomain']}\n-Use Proxy: {config['use_proxy']}",
+        "blue",
         file=sys.stderr,
     )
 
@@ -193,8 +193,8 @@ def get_user_input(config_file="configs/config.ini"):
         config["total_output"] = current_total_output
         search_tasks_with_proxy = []
 
-        number_of_worker = min(len(proxies), 30)
-        cprint(f"Number of workers: {number_of_worker}", "yellow", file=sys.stderr)
+        number_of_worker = 30  # min(len(proxies)*2, 30)
+        cprint(f"Number of workers: {number_of_worker}", "blue", file=sys.stderr)
 
         with open(config["target_file"], "r") as file:
             subdomain_list = file.read().splitlines()
@@ -226,7 +226,7 @@ def get_user_input(config_file="configs/config.ini"):
                         else:
                             cprint(
                                 f"Already initialized Dorking search for based targets {domain} - {category}",
-                                "yellow",
+                                color="cyan",
                                 file=sys.stderr,
                             )
 
@@ -271,7 +271,7 @@ def setup_experiment_folder(config, categories):
     )
     config["experiment_folder"] = folder_name
     if not os.path.exists(folder_name):
-        cprint(f"Creating folder {folder_name}", "yellow", file=sys.stderr)
+        cprint(f"Creating folder {folder_name}", "blue", file=sys.stderr)
         os.makedirs(folder_name)
     setup_csv(config, categories, folder_name)
 
@@ -401,85 +401,31 @@ if __name__ == "__main__":
             exit()
 
         if config["do_dorking_google"]:
-            cprint(
-                "\nStarting Google dorking scan phase...\n", "yellow", file=sys.stderr
-            )
+            cprint("\nStarting Google dorking scan phase...\n", "blue", file=sys.stderr)
             launch_google_dorks_and_search_attack(config, categories)
 
         if config["do_dorking_github"]:
-            cprint(
-                "\nStarting Github dorking scan phase...\n", "yellow", file=sys.stderr
-            )
+            cprint("\nStarting Github dorking scan phase...\n", "blue", file=sys.stderr)
             raise NotImplementedError("Github dorking scan phase not implemented yet")
             launch_github_dorks_and_search_attack(config, categories)
 
         if config["do_dorking_shodan"]:
-            cprint(
-                "\nStarting Shodan dorking scan phase...\n", "yellow", file=sys.stderr
-            )
+            cprint("\nStarting Shodan dorking scan phase...\n", "blue", file=sys.stderr)
             raise NotImplementedError("Shodan dorking scan phase not implemented yet")
             launch_shodan_dorks_and_search_attack(config, categories)
 
         if config["do_crawl"]:
-            website_to_test = get_links(config)
-            cprint(
-                "\nTesting websites for XSS vulnerability...\n",
-                "yellow",
-                file=sys.stderr,
-            )
-            if not website_to_test:
-                cprint(
-                    "No websites found matching the dorks. Please adjust your search criteria.",
-                    "red",
-                    file=sys.stderr,
-                )
-            launch_crawling_attack(config, website_to_test)
+            launch_crawling_attack(config)
 
         if config["do_xss"]:
-            website_to_test = get_xss_links(config)
-            cprint(
-                "\nTesting websites for XSS vulnerability...\n",
-                "yellow",
-                file=sys.stderr,
-            )
-            if not website_to_test:
-                cprint(
-                    "No websites found matching the dorks. Please adjust your search criteria.",
-                    "red",
-                    file=sys.stderr,
-                )
-            launch_xss_attack(config, website_to_test)
+            launch_xss_attack(config)
 
         if config["do_sqli"]:
             raise NotImplementedError("SQLi phase not implemented yet")
-            website_to_test = POTENTIAL_PATHS["sqli"][1]
-            cprint(
-                "\nTesting websites for SQL injection vulnerability...\n",
-                "yellow",
-                file=sys.stderr,
-            )
-            if not website_to_test:
-                cprint(
-                    "No websites found matching the dorks. Please adjust your search criteria.",
-                    "red",
-                    file=sys.stderr,
-                )
             launch_sqli_attack(config)
 
         if config["do_api"]:
             raise NotImplementedError("API phase not implemented yet")
-            website_to_test = POTENTIAL_PATHS["sqli"][1]
-            cprint(
-                "\nTesting websites for SQL injection vulnerability...\n",
-                "yellow",
-                file=sys.stderr,
-            )
-            if not website_to_test:
-                cprint(
-                    "No websites found matching the dorks. Please adjust your search criteria.",
-                    "red",
-                    file=sys.stderr,
-                )
             launch_api_attack(config)
 
         cprint(banner_terminal_res, "green", file=sys.stderr)
@@ -498,8 +444,11 @@ if __name__ == "__main__":
         #     )
         #     for target in VULN_PATHS["xss"][1]:
         #         cprint(target, "red", file=sys.stderr)
-    except Exception as e:
-        cprint(f"Error: {e}", "red", file=sys.stderr)
+    # except Exception as e:
+    #     exc_type, exc_obj, exc_tb = sys.exc_info()
+    #     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+    #     cprint(f"{exc_type}, {fname}, {exc_tb.tb_lineno}", "red", file=sys.stderr)
+    #     cprint(f"Error: {e}", "red", file=sys.stderr)
     except KeyboardInterrupt:
         cprint("Exiting...", "red", file=sys.stderr)
         # TODO save progress

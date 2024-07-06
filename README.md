@@ -4,11 +4,11 @@
 <img src="https://forthebadge.com/images/badges/made-with-python.svg" >
 </div>
 
-## Introduction
+## Introduction:
 
 BountyDrive is a comprehensive tool designed for penetration testers and cybersecurity researchers. It integrates various modules for performing attacks, reporting, and managing VPN/proxy settings, making it an indispensable asset for any security professional.
 
-## Features
+## Features:
 - **Automation**: Automate the process of finding vulnerabilities.
 - **Dorking**: Automate Google, GitHub, and Shodan dorking to find vulnerabilities.
 - **Web Crawling**: Crawl web pages to collect data.
@@ -18,11 +18,53 @@ BountyDrive is a comprehensive tool designed for penetration testers and cyberse
 - **WAF Bypassing**: Techniques to bypass Web Application Firewalls.
 - **Reporting**: Generate detailed reports of findings.
 - **VPN/Proxies Management**: Seamlessly switch between different VPN services and proxies to anonymize your activities.
-- **pypy3 Support**: Use pypy3 to speed up the execution of the tool.
 
-## Installation
+## Python
 
-### Packages
+- **Python3** is natively supported:
+    
+```bash
+# Dorking process time with 9 threads:
+
+
+# Crawling process time with 9 threads:
+
+
+# XSS process time with 9 threads:
+  
+
+```
+
+- **pypy3 Support**: Use pypy3 to speed up the execution of the tool:
+
+```bash
+# Dorking process time with 9 threads:
+
+
+# Crawling process time with 9 threads:
+
+
+# XSS process time with 9 threads:
+
+```
+
+- **numba Support**: Use numba to speed up the execution of the tool:
+
+```bash
+# Dorking process time with 9 threads:
+
+
+# Crawling process time with 9 threads:
+
+
+# XSS process time with 9 threads:
+
+
+```
+
+## Installation:
+
+### Packages:
 
 ```bash
 # For reCAPTCHA
@@ -30,14 +72,15 @@ sudo apt-get install portaudio19-dev
 
 ```
 
-### Pre-Commit
+### Pre-Commit:
 
 ```bash
 python3 -m pip install pre-commit
 pre-commit installed at .git/hooks/pre-commit
+mypy bounty_drive/
 ```
 
-### Classical
+### Classical:
 
 ```bash
 sudo apt-get install python3 python3-dev python3-venv
@@ -56,7 +99,7 @@ Update `config.ini`
 
 Run with `python3 bounty_drive.py`
 
-### PyPy 
+### PyPy: 
 
 Not ready - SEGFAULT in some libs (urllib3, cryptography downgraded).
 
@@ -85,7 +128,7 @@ pdate `config.ini`
 Run with `pypy3 bounty_drive.py`
 
 
-## Usage
+## Usage:
 
 ```bash
 # update configs/config.ini
@@ -93,12 +136,12 @@ python3 bountry_drive.py [config_file]
 pypy3   bountry_drive.py [config_file]
 ```
 
-## VPN/Proxies Management
+## VPN/Proxies Management:
 
 * NordVPN: Switch between NordVPN servers.
 * Proxies: Use different proxy lists to route your traffic.
 
-## Contributing
+## Contributing:
 
 We welcome contributions from the community. To contribute:
 
@@ -113,9 +156,16 @@ We welcome contributions from the community. To contribute:
 * https://github.com/hahwul/dalfox
 * https://github.com/mandiant/PwnAuth
 
-## TODOs
-Also watch module for more specfic TODOs
-* add a vulnerable wordpress plugin and then dork to find vulnerable wordpress sites
-* use singletons for config !!!
-* create class for each attack
-* change the color used
+## TODOs:
+
+Also watch module for more specfic TODOs:
+
+* Implement API/SCAN/SQLi/SSTI
+* https://python-hyperscan.readthedocs.io/en/latest/usage/ for regex
+* Improving Selenium for WAF bypass and perform attack (check for edge driver seems better)
+* Add a vulnerable wordpress plugin and then dork to find vulnerable wordpress sites
+* Create class for each attack
+* Change the color used
+* Implement the login module in website to attacks with Cookie & co.
+* Add similar page detector to avoid duplicate crawling
+* implement asyncio

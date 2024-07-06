@@ -1,4 +1,5 @@
 import csv
+import json
 import os
 import sys
 
@@ -261,7 +262,9 @@ def get_crawling_results(settings):
         with open(settings["crawl_csv"], mode="r", newline="") as file:
             reader = csv.DictReader(file)
             for row in reader:
-                crawling_results.append((row["seedUrl"], row["domURLs"], row["forms"]))
+                crawling_results.append(
+                    (row["seedUrl"], json.loads(row["doms"]), json.loads(row["forms"]))
+                )
 
     return crawling_results
 

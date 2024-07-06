@@ -13,3 +13,8 @@ pydub
 bs4
 psutil
 random_user_agent
+numba
+tbb
+types-tqdm
+types-psutil
+types-beautifulsoup4

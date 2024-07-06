@@ -5,6 +5,7 @@ import re
 import sys
 import tempfile
 import time
+import unicodedata
 from urllib.parse import urljoin
 import uuid
 import requests
@@ -168,6 +169,43 @@ def by_pass_captcha(driver):
         pass
 
 
+def slugify(value, allow_unicode=False):
+    """
+    Taken from https://github.com/django/django/blob/master/django/utils/text.py
+    Convert to ASCII if 'allow_unicode' is False. Convert spaces or repeated
+    dashes to single dashes. Remove characters that aren't alphanumerics,
+    underscores, or hyphens. Convert to lowercase. Also strip leading and
+    trailing whitespace, dashes, and underscores.
+    """
+    value = str(value)
+    if allow_unicode:
+        value = unicodedata.normalize("NFKC", value)
+    else:
+        value = (
+            unicodedata.normalize("NFKD", value)
+            .encode("ascii", "ignore")
+            .decode("ascii")
+        )
+    value = re.sub(r"[^\w\s-]", "", value.lower())
+    return re.sub(r"[-\s]+", "-", value).strip("-_")
+
+
+def parse_headers(headers):
+    headers = headers.replace("\\n", "\n")
+    sorted_headers = {}
+    matches = re.findall(r"(.*):\s(.*)", headers)
+    for match in matches:
+        header = match[0]
+        value = match[1]
+        try:
+            if value[-1] == ",":
+                value = value[:-1]
+            sorted_headers[header] = value
+        except IndexError:
+            pass
+    return sorted_headers
+
+
 def bypass_captcha_audio_phase(driver):
     recognizer = speech_recognition.Recognizer()
 
@@ -286,9 +324,12 @@ def parse_google_search_results(proxies, advanced, full_query, response):
             file=sys.stderr,
         )
         try:
-            with open(
-                f"outputs/html_google_todo/'google_search_{full_query}'.html", "w"
-            ) as f:
+            filename = (
+                "outputs/html_google_todo/"
+                + slugify(f"google_search_{full_query}")
+                + ".html"
+            )
+            with open(filename, "w") as f:
                 f.write(response)
         except Exception as e:
             cprint(

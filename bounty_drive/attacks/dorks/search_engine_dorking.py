@@ -6,6 +6,7 @@
 import glob
 import random
 import threading
+import time
 import requests
 from tqdm import tqdm
 import sys
@@ -185,7 +186,6 @@ def execute_search_with_retries(
         "Accept-Encoding": "gzip,deflate",
         "Connection": "close",
         "DNT": "1",
-        "accept-language": "en-US,en;q=0.9",
         "cache-control": "max-age=0",
         "Upgrade-Insecure-Requests": "1",
     }
@@ -410,7 +410,9 @@ def launch_google_dorks_and_search_attack(config, categories):
     Returns:
         None
     """
+    start_time = time.time()
     try:
+
         proxies, proxy_cycle = get_proxies_and_cycle(config)
 
         search_tasks = {}
@@ -444,7 +446,7 @@ def launch_google_dorks_and_search_attack(config, categories):
             thread = threading.Thread(target=change_vpn)
             thread.start()
 
-        number_of_worker = min(len(proxies), 30)
+        number_of_worker = 30  # min(len(proxies)*2, 30)
         cprint(f"Number of workers: {number_of_worker}", "yellow", file=sys.stderr)
 
         search_tasks_with_proxy = []
@@ -465,7 +467,7 @@ def launch_google_dorks_and_search_attack(config, categories):
             "yellow",
             file=sys.stderr,
         )
-
+        # TODO https://stackoverflow.com/questions/65832061/threadpoolexecutor-keyboardinterrupt
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=number_of_worker
         ) as executor:
@@ -481,32 +483,48 @@ def launch_google_dorks_and_search_attack(config, categories):
                 ): task
                 for task in search_tasks_with_proxy
             }
-            for future in tqdm(
-                concurrent.futures.as_completed(future_to_search),
-                total=len(future_to_search),
-                desc="Searching for vulnerable website",
-                unit="site",
-            ):
-                future.result()
+            try:
+                for future in tqdm(
+                    concurrent.futures.as_completed(future_to_search),
+                    total=len(future_to_search),
+                    desc="Searching for vulnerable website",
+                    unit="site",
+                ):
+                    future.result()
+            except KeyboardInterrupt:
+                cprint(
+                    "Process interrupted by user during google dorking phase ... Saving results",
+                    "red",
+                    file=sys.stderr,
+                )
+
+                end_time = time.time()
+                cprint(
+                    "Total time taken: " + str(end_time - start_time),
+                    "green",
+                    file=sys.stderr,
+                )
+                executor._threads.clear()
+                concurrent.futures.thread._threads_queues.clear()
+                # https://stackoverflow.com/questions/49992329/the-workers-in-threadpoolexecutor-is-not-really-daemon
+                for result, config in google_dorking_results:
+                    save_dorking_query(result, config)
+                exit()
+
+        end_time = time.time()
+        cprint(
+            "Total time taken: " + str(end_time - start_time), "green", file=sys.stderr
+        )
 
         cprint(
             f"Saving dorks - Total number of dorks processed: {len(google_dorking_results)}",
             "green",
             file=sys.stderr,
         )
+
+        # TODO remove duplicate url and merge dorks
         for result, config in google_dorking_results:
             save_dorking_query(result, config)
-    except KeyboardInterrupt:
-        cprint(
-            "Process interrupted by user during google dorking phase ... Saving results",
-            "red",
-            file=sys.stderr,
-        )
-        # concurrent.futures.thread._threads_queues.clear()
-        # https://stackoverflow.com/questions/49992329/the-workers-in-threadpoolexecutor-is-not-really-daemon
-        for result, config in google_dorking_results:
-            save_dorking_query(result, config)
-        exit()
     except Exception as e:
         cprint(f"Error searching for dorks: {e}", "red", file=sys.stderr)
         raise e

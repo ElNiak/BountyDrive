@@ -100,21 +100,22 @@ def launch_sqli_attack(proxies):
     """
     Test a list of websites for SQL injection vulnerability using multithreading and proxies.
     """
-    VULN_PATHS["sqli"][1] = []
+    pass
+    # VULN_PATHS["sqli"][1] = []
 
-    # The code snippet provided is written in Python and performs the following tasks:
+    # # The code snippet provided is written in Python and performs the following tasks:
 
-    proxy_cycle = round_robin_proxies(proxies)
+    # proxy_cycle = round_robin_proxies(proxies)
 
-    for website in tqdm(
-        POTENTIAL_PATHS["sqli"][1], desc="Testing for SQLi", unit="site"
-    ):
-        proxy = next(proxy_cycle)
-        url, result = test_sqli_with_proxy(website, proxy)
-        if result is True:
-            cprint(f"{url} ===> Vulnerable!", "green", file=sys.stderr)
-            VULN_PATHS["sqli"][1].append(url)
-        elif result is False:
-            cprint(f"{url} ===> Not Vulnerable", "red", file=sys.stderr)
-        else:
-            cprint(f"{url} ===> Can not be Determined", "blue", file=sys.stderr)
+    # for website in tqdm(
+    #     POTENTIAL_PATHS["sqli"][1], desc="Testing for SQLi", unit="site"
+    # ):
+    #     proxy = next(proxy_cycle)
+    #     url, result = test_sqli_with_proxy(website, proxy)
+    #     if result is True:
+    #         cprint(f"{url} ===> Vulnerable!", "green", file=sys.stderr)
+    #         VULN_PATHS["sqli"][1].append(url)
+    #     elif result is False:
+    #         cprint(f"{url} ===> Not Vulnerable", "red", file=sys.stderr)
+    #     else:
+    #         cprint(f"{url} ===> Can not be Determined", "blue", file=sys.stderr)

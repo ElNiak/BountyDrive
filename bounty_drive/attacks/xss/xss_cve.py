@@ -285,7 +285,6 @@ def retire_js(url, response, config, proxies):
                 "Connection": "close",
                 "DNT": "1",
                 "Upgrade-Insecure-Requests": "1",
-                "accept-language": "en-US,en;q=0.9",
                 "cache-control": "max-age=0",
             }
             cprint(

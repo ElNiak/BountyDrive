@@ -5,11 +5,6 @@ getworldcoin.com
 *.worldcoin-distributors.com
 bioid-management.app
 *.worldcoin.dev
-https://apps.apple.com/no/app/world-app-worldcoin-wallet/id1560859847
-https://play.google.com/store/apps/details?id=com.worldcoin
-https://github.com/worldcoin
-https://github.com/worldcoin/world-id-contracts
-https://github.com/worldcoin/world-id-state-bridge
 worldcoin.org
 *.toolsforhumanity.com
 support.worldcoin.com

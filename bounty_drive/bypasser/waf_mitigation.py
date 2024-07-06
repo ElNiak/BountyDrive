@@ -45,7 +45,6 @@ def waf_detector(proxies, url, config, mode="xss"):
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip,deflate",
-        "accept-language": "en-US,en;q=0.9",
         "cache-control": "max-age=0",
         "Connection": "close",
         "DNT": "1",

