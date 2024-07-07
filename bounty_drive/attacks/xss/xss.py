@@ -13,7 +13,7 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from attacks.dorks.search_engine_dorking import get_proxies_and_cycle
-from attacks.xss.xss_striker import attacker_crawler
+from attacks.xss.xss_striker import attacker_crawler, base64_encoder
 from reporting.results_manager import (
     get_crawling_results,
     get_xss_links,
@@ -195,6 +195,10 @@ def launch_xss_attack(config):
                 scheme = urlparse(website).scheme
                 host = urlparse(website).netloc
                 main_url = scheme + "://" + host
+                print(f"Main URL: {main_url}")
+                print(f"Forms: {forms}")
+                print(f"DOM URLS: {domUrls}")
+                print(f"zip(forms, domUrls): {list(zip(forms, domUrls))}")
                 for form, domURL in list(zip(forms, domUrls)):
                     search_tasks_with_proxy.append(
                         {
@@ -207,13 +211,20 @@ def launch_xss_attack(config):
                         }
                     )
 
+            cprint(
+                f"Total XSS Targets: {len(search_tasks_with_proxy)}",
+                color="yellow",
+                file=sys.stderr,
+            )
+
             if config["fuzz_xss"]:
                 raise NotImplementedError("Fuzzing is not implemented yet")
             else:
                 blindPayloads = []
                 with open("attacks/xss/payloads/blind-xss-payload-list.txt", "r") as f:
                     blindPayloads = f.readlines()
-                encoding = base64 if config["encode_xss"] else False
+
+                encoding = base64_encoder if config["encode_xss"] else False
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=number_of_worker
                 ) as executor:

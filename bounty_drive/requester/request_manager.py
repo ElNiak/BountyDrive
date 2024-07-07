@@ -43,7 +43,7 @@ def headers_403_bypass():
         "X-Forwarded-Port": "80",
         "X-Forwarded-Port": "8080",
         "X-Forwarded-Port": "8443",
-        "X-Forwarded-Scheme": ["http", "https"],
+        "X-Forwarded-Scheme": random.choice(["http", "https"]),
         "X-Forwarded-Server": "127.0.0.1",
         "X-Forwarded": "127.0.0.1",
         "X-Forwarder-For": "127.0.0.1",
@@ -356,7 +356,7 @@ def start_request(
         # Parse Google response
         if response.status_code != 200:
             cprint(
-                f"Error in request ... - status code = {response.status_code}",
+                f"Error in {'GET' if GET else 'POST'} request {base_url} with params - {params}/data - {data} ... - status code = {response.status_code}",
                 color="red",
                 file=sys.stderr,
             )
@@ -401,7 +401,7 @@ def start_request(
                     time.sleep(config["waf_delay"])
             else:
                 cprint(
-                    f"Error in request ... - status code = {response.status_code}",
+                    f"Error in {'GET' if GET else 'POST'} request {base_url} with params - {params}/data - {data} ... - status code = {response.status_code}",
                     color="red",
                     file=sys.stderr,
                 )

@@ -64,11 +64,19 @@ def waf_detector(proxies, url, config, mode="xss"):
         config=config,
         bypassed_403=True,
     )
-    page = response.text
+    if response:
+        if hasattr(response, "text"):
+            page = response.text
+        else:
+            page = response.read().decode("utf-8")
+    else:
+        cprint(f"Waf Detector: No response {response}", "blue", file=sys.stderr)
+        return None
+
     code = str(response.status_code)
     headers = str(response.headers)
     cprint("Waf Detector code: {}".format(code), "blue", file=sys.stderr)
-    cprint("Waf Detector headers:", response.headers, "blue", file=sys.stderr)
+    cprint(f"Waf Detector headers: {response.headers}", "blue", file=sys.stderr)
 
     waf_signatures_files = glob.glob("bypasser/waf_signature/*.json", recursive=True)
     bestMatch = [0, None]

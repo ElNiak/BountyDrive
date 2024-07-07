@@ -169,3 +169,8 @@ Also watch module for more specfic TODOs:
 * Implement the login module in website to attacks with Cookie & co.
 * Add similar page detector to avoid duplicate crawling
 * implement asyncio
+* robot.txt: | http-robots.txt: 69 disallowed entries (15 shown)
+| /_admrus/ /_admrusr/ /publicite/www/delivery/ 
+| /signaler-contenu-illicite.html* /desabo/ /optins/preferences/ /php/ /php/ajax/* 
+| /feuilletables/ /iframe/ /newsletters/ 
+|_/jeu-nouveau-rustica-bien-etre/ /concours/ /popunder/ /popup/

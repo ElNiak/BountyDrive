@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+import re
 import sys
 
 from termcolor import cprint
@@ -258,12 +259,47 @@ def get_crawling_results(settings):
     """
     crawling_results = []
 
+    color_codes = [
+        "\033[97m",  # white
+        "\033[92m",  # green
+        "\033[91m",  # red
+        "\033[93m",  # yellow
+        "\033[0m",  # end
+        "\033[7;91m",  # back
+        "\033[93m[!]\033[0m",  # info
+        "\033[94m[?]\033[0m",  # que
+        "\033[91m[-]\033[0m",  # bad
+        "\033[92m[+]\033[0m",  # good
+        "\033[97m[~]\033[0m",  # run
+    ]
+
     if os.path.exists(settings["crawl_csv"]):
         with open(settings["crawl_csv"], mode="r", newline="") as file:
             reader = csv.DictReader(file)
             for row in reader:
+                cprint(
+                    f"Getting {row} to experiment list...",
+                    "blue",
+                    file=sys.stderr,
+                )
+                dom_parsed = re.sub(r"\\u001b\[93m|\\u001b\[0m", "", str(row["doms"]))
+                dom_parsed = dom_parsed.replace("\\\\\\\\", "\\\\")
+
+                for color in color_codes:
+                    dom_parsed = dom_parsed.replace(color, "")
+
+                forms_parsed = str(row["forms"]).strip("'<>() ").replace("'", '"')
+                cprint(
+                    f"Getting {dom_parsed} & {forms_parsed} to experiment list under category crawl DOM",
+                    "blue",
+                    file=sys.stderr,
+                )
                 crawling_results.append(
-                    (row["seedUrl"], json.loads(row["doms"]), json.loads(row["forms"]))
+                    (
+                        row["seedUrl"],
+                        [] if dom_parsed == "no" else json.loads(dom_parsed),
+                        [] if forms_parsed == "no" else json.loads(forms_parsed),
+                    )
                 )
 
     return crawling_results
@@ -289,8 +325,8 @@ def save_crawling_query(result, settings):
                     crawl_id,
                     seedUrl,
                     "yes",
-                    domURLs_temps,
-                    forms_temps,
+                    json.dumps(domURLs_temps),
+                    json.dumps(forms_temps),
                 ]  # Success and payload columns are initially empty
                 writer.writerow(row)
                 cprint(

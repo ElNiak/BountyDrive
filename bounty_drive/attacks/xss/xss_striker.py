@@ -1,3 +1,4 @@
+import base64
 import concurrent.futures
 import copy
 import os
@@ -328,9 +329,9 @@ def generate_xss_urls(url):
 
 def base64_encoder(string):
     if re.match(r"^[A-Za-z0-9+\/=]+$", string) and (len(string) % 4) == 0:
-        return bs4.b64decode(string.encode("utf-8")).decode("utf-8")
+        return base64.b64decode(string.encode("utf-8")).decode("utf-8")
     else:
-        return bs4.b64encode(string.encode("utf-8")).decode("utf-8")
+        return base64.b64encode(string.encode("utf-8")).decode("utf-8")
 
 
 def dom(response):
@@ -527,8 +528,9 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl, threshold
         params = get_params(target, "", True)
         if "=" in target:  # if there's a = in the url, there should be GET parameters
             inps = []
-            for name, value in params.items():
-                inps.append({"name": name, "value": value})
+            if params:
+                for name, value in params.items():
+                    inps.append({"name": name, "value": value})
             forms.append({0: {"action": url, "method": "get", "inputs": inps}})
 
         headers = {
@@ -572,9 +574,17 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl, threshold
         with lock_processed:
             for p in processed_content:
                 if processed_content[p] and response:
-                    similarity = html_similarity.structural_similarity(
-                        processed_content[p], response
-                    )
+                    try:
+                        similarity = html_similarity.structural_similarity(
+                            processed_content[p], response
+                        )
+                    except Exception as e:
+                        cprint(
+                            f"Error while comparing HTML content similarity: {e}",
+                            "red",
+                            file=sys.stderr,
+                        )
+                        similarity = 0
                     if similarity > threshold:
                         cprint(
                             f"Skipping already processed URL: {target} - similarity ratio: {similarity} with {p}",
@@ -723,7 +733,10 @@ def html_xss_parser(response, encoding):
             }
     """
     rawResponse = response  # raw response returned by requests
-    response = response.text  # response content
+    if response:
+        response = response.text  # response content
+    else:
+        response = ""
     if encoding:  # if the user has specified an encoding, encode the probe in that
         response = response.replace(encoding(xsschecker), xsschecker)
     reflections = response.count(xsschecker)
@@ -874,18 +887,30 @@ def checker(config, proxy, url, params, GET, payload, positions, encoding):
     }
     response = start_request(
         proxies=proxies,
+        config=config,
         base_url=url,
         params=replace_value(params, xsschecker, checkString, copy.deepcopy),
         headers=headers,
         GET=GET,
     )
 
-    if hasattr(response, "text"):
-        response = response.text.lower()
+    if response:
+        if hasattr(response, "text"):
+            response = response.text.lower()
+        else:
+            response = response.read().decode("utf-8")
 
     reflectedPositions = []
-    for match in re.finditer("st4r7s", response):
-        reflectedPositions.append(match.start())
+    try:
+        for match in re.finditer("st4r7s", response):
+            reflectedPositions.append(match.start())
+    except Exception as e:
+        cprint(
+            "An error occurred while processing the st4r7s, response - {e}",
+            color="red",
+            file=sys.stderr,
+        )
+        pass
     filledPositions = fill_holes(positions, reflectedPositions)
     #  Itretating over the reflections
     num = 0
@@ -1399,13 +1424,13 @@ def attacker_crawler(
                             if is_waffed:
                                 cprint(
                                     "WAF detected: %s%s%s" % (green, is_waffed, end),
-                                    "red",
+                                    color="red",
                                     file=sys.stderr,
                                 )
                             else:
                                 cprint(
                                     "WAF Status: %sOffline%s" % (green, end),
-                                    "green",
+                                    color="green",
                                     file=sys.stderr,
                                 )
 
@@ -1423,7 +1448,7 @@ def attacker_crawler(
                             # TODO add session
                             proxies = prepare_proxies(proxy, config)
                             cprint(
-                                f"Testing attack for GET - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
+                                f"Testing attack for {'GET' if GET else 'POST'} - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
                                 "yellow",
                                 file=sys.stderr,
                             )
@@ -1431,6 +1456,7 @@ def attacker_crawler(
                             response = start_request(
                                 config=config,
                                 proxies=proxies,
+                                data=[paramsCopy],
                                 base_url=url,
                                 params=paramsCopy,
                                 headers=headers,
@@ -1512,7 +1538,7 @@ def attacker_crawler(
                                 for blindPayload in blindPayloads:
                                     paramsCopy[paramName] = blindPayload
                                     cprint(
-                                        f"Testing attack for GET with blind payload - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
+                                        f"Testing blind XSS attack for {'GET' if GET else 'POST'} with blind payload - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
                                         "yellow",
                                         file=sys.stderr,
                                     )
@@ -1525,11 +1551,18 @@ def attacker_crawler(
                                         headers=headers,
                                         GET=GET,
                                     )
-                                    cprint(
-                                        "Response: %s" % response.text,
-                                        "green",
-                                        file=sys.stderr,
-                                    )
+                                    if response:
+                                        cprint(
+                                            "Response blind XSS: %s" % response.text,
+                                            "green",
+                                            file=sys.stderr,
+                                        )
+                                    else:
+                                        cprint(
+                                            "Response blind XSS: %s" % response,
+                                            "green",
+                                            file=sys.stderr,
+                                        )
 
 
 # def xss_attack(

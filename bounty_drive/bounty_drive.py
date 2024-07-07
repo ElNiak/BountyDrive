@@ -47,6 +47,7 @@ from utils.banner import load_animation
 import configparser
 
 os.system("clear")
+csv.field_size_limit(100000000)
 
 #########################################################################################
 # Main function

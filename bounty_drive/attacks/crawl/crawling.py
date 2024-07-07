@@ -175,11 +175,22 @@ def launch_crawling_attack(config):
                         save_crawling_query(result, config)
                     # TODO with attacks
                     exit(1)
-    # except Exception as e:
-    #     exc_type, exc_obj, exc_tb = sys.exc_info()
-    #     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-    #     cprint(f"{exc_type}, {fname}, {exc_tb.tb_lineno}", "red", file=sys.stderr)
-    #     cprint(f"Error: {e}", color="red", file=sys.stderr)
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        cprint(f"{exc_type}, {fname}, {exc_tb.tb_lineno}", "red", file=sys.stderr)
+        cprint(f"Error: {e}", color="red", file=sys.stderr)
+        end_time = time.time()
+        cprint(
+            "Total time taken: " + str(end_time - start_time),
+            "green",
+            file=sys.stderr,
+        )
+        executor._threads.clear()
+        concurrent.futures.thread._threads_queues.clear()
+        # https://stackoverflow.com/questions/49992329/the-workers-in-threadpoolexecutor-is-not-really-daemon
+        for result, config in crawling_results:
+            save_crawling_query(result, config)
     finally:
         end_time = time.time()
         cprint(
