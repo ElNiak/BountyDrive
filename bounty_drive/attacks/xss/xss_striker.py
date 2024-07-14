@@ -10,6 +10,7 @@ import threading
 from urllib.parse import unquote, urlparse
 import bs4
 import html_similarity
+import validators
 from termcolor import cprint
 from fuzzywuzzy import fuzz
 from bypasser.waf_mitigation import waf_detector
@@ -347,62 +348,88 @@ def dom(response):
     highlighted = []
     sources = r"""\b(?:document\.(URL|documentURI|URLUnencoded|baseURI|cookie|referrer)|location\.(href|search|hash|pathname)|window\.name|history\.(pushState|replaceState)(local|session)Storage)\b"""
     sinks = r"""\b(?:eval|evaluate|execCommand|assign|navigate|getResponseHeaderopen|showModalDialog|Function|set(Timeout|Interval|Immediate)|execScript|crypto.generateCRMFRequest|ScriptElement\.(src|text|textContent|innerText)|.*?\.onEventName|document\.(write|writeln)|.*?\.innerHTML|Range\.createContextualFragment|(document|window)\.location)\b"""
-    scripts = re.findall(r"(?i)(?s)<script[^>]*>(.*?)</script>", response)
+    scripts = re.findall(
+        r"(?i)(?s)<script[^>]*>(.*?)</script>", response
+    )  # Find all script tags and extract the content between them
     sinkFound, sourceFound = False, False
     for script in scripts:
-        script = script.split("\n")
+        script = script.split("\n")  # Split the script content into lines
         num = 1
-        allControlledVariables = set()
+        allControlledVariables = set()  # Set to store all controlled variables
         try:
             for newLine in script:
                 line = newLine
-                parts = line.split("var ")
-                controlledVariables = set()
+                parts = line.split(
+                    "var "
+                )  # Split the line by "var " to identify variable declarations
+                controlledVariables = (
+                    set()
+                )  # Set to store controlled variables in each line
                 if len(parts) > 1:
                     for part in parts:
                         for controlledVariable in allControlledVariables:
                             if controlledVariable in part:
                                 controlledVariables.add(
-                                    re.search(r"[a-zA-Z$_][a-zA-Z0-9$_]+", part)
+                                    re.search(
+                                        r"[a-zA-Z$_][a-zA-Z0-9$_]+", part
+                                    )  # Use regex to find variable names
                                     .group()
                                     .replace("$", "\$")
                                 )
-                pattern = re.finditer(sources, newLine)
+                pattern = re.finditer(
+                    sources, newLine
+                )  # Find sources using regex pattern
                 for grp in pattern:
                     if grp:
-                        source = newLine[grp.start() : grp.end()].replace(" ", "")
+                        source = newLine[grp.start() : grp.end()].replace(
+                            " ", ""
+                        )  # Extract the source and remove spaces
                         if source:
                             if len(parts) > 1:
                                 for part in parts:
                                     if source in part:
                                         controlledVariables.add(
-                                            re.search(r"[a-zA-Z$_][a-zA-Z0-9$_]+", part)
+                                            re.search(
+                                                r"[a-zA-Z$_][a-zA-Z0-9$_]+", part
+                                            )  # Add controlled variables from variable declarations
                                             .group()
                                             .replace("$", "\$")
                                         )
-                            line = line.replace(source, yellow + source + end)
+                            line = line.replace(
+                                source, yellow + source + end
+                            )  # Highlight the source in yellow
                 for controlledVariable in controlledVariables:
-                    allControlledVariables.add(controlledVariable)
+                    allControlledVariables.add(
+                        controlledVariable
+                    )  # Add controlled variables to the set of all controlled variables
                 for controlledVariable in allControlledVariables:
                     matches = list(
-                        filter(None, re.findall(r"\b%s\b" % controlledVariable, line))
+                        filter(
+                            None, re.findall(r"\b%s\b" % controlledVariable, line)
+                        )  # Find matches of controlled variables in the line
                     )
                     if matches:
                         sourceFound = True
                         line = re.sub(
                             r"\b%s\b" % controlledVariable,
-                            yellow + controlledVariable + end,
+                            yellow
+                            + controlledVariable
+                            + end,  # Highlight controlled variables in yellow
                             line,
                         )
-                pattern = re.finditer(sinks, newLine)
+                pattern = re.finditer(sinks, newLine)  # Find sinks using regex pattern
                 for grp in pattern:
                     if grp:
-                        sink = newLine[grp.start() : grp.end()].replace(" ", "")
+                        sink = newLine[grp.start() : grp.end()].replace(
+                            " ", ""
+                        )  # Extract the sink and remove spaces
                         if sink:
-                            # line = line.replace(sink, red + sink + end)
+                            # line = line.replace(sink, red + sink + end)  # Highlight the sink in red
                             sinkFound = True
                 if line != newLine:
-                    highlighted.append("%-3s %s" % (str(num), line.lstrip(" ")))
+                    highlighted.append(
+                        "%-3s %s" % (str(num), line.lstrip(" "))
+                    )  # Add the highlighted line to the list
                 num += 1
         except MemoryError:
             pass
@@ -412,7 +439,7 @@ def dom(response):
         return []
 
 
-def zetanize(response):
+def html_forms_extractor(response):
     """Extracts form information from an HTML response.
 
     This function takes an HTML response as input and extracts information about the forms present in the response.
@@ -446,40 +473,78 @@ def zetanize(response):
 
     """
 
-    def e(string):
+    def encodeString(string):
         return string.encode("utf-8")
 
-    def d(string):
+    def decodeString(string):
         return string.decode("utf-8")
 
     # remove the content between html comments
     response = re.sub(r"(?s)<!--.*?-->", "", response)
+
     forms = {}
     matches = re.findall(
         r"(?i)(?s)<form.*?</form.*?>", response
     )  # extract all the forms
+
     num = 0
-    for match in matches:  # everything else is self explanatory if you know regex
+    for match in matches:
+        # extract the action URL using regex
         page = re.search(r'(?i)action=[\'"](.*?)[\'"]', match)
+        # The regex "(?i)action=[\'"](.*?)[\'"]" matches the action attribute of the form tag.
+        # It looks for the string "action=" followed by an optional single or double quote,
+        # then captures the URL inside the quotes.
+
+        # extract the form method using regex
         method = re.search(r'(?i)method=[\'"](.*?)[\'"]', match)
+        # The regex "(?i)method=[\'"](.*?)[\'"]" matches the method attribute of the form tag.
+        # It looks for the string "method=" followed by an optional single or double quote,
+        # then captures the method value inside the quotes.
+
         forms[num] = {}
-        forms[num]["action"] = d(e(page.group(1))) if page else ""
-        forms[num]["method"] = d(e(method.group(1)).lower()) if method else "get"
+        forms[num]["action"] = decodeString(encodeString(page.group(1))) if page else ""
+        forms[num]["method"] = (
+            decodeString(encodeString(method.group(1)).lower()) if method else "get"
+        )
         forms[num]["inputs"] = []
+
         inputs = re.findall(r"(?i)(?s)<input.*?>", response)
         for inp in inputs:
+            # extract the input name using regex
             inpName = re.search(r'(?i)name=[\'"](.*?)[\'"]', inp)
+            # The regex "(?i)name=[\'"](.*?)[\'"]" matches the name attribute of the input tag.
+            # It looks for the string "name=" followed by an optional single or double quote,
+            # then captures the name value inside the quotes.
+
             if inpName:
+                # extract the input type using regex
                 inpType = re.search(r'(?i)type=[\'"](.*?)[\'"]', inp)
+                # The regex "(?i)type=[\'"](.*?)[\'"]" matches the type attribute of the input tag.
+                # It looks for the string "type=" followed by an optional single or double quote,
+                # then captures the type value inside the quotes.
+
+                # extract the input value using regex
                 inpValue = re.search(r'(?i)value=[\'"](.*?)[\'"]', inp)
-                inpName = d(e(inpName.group(1)))
-                inpType = d(e(inpType.group(1))) if inpType else ""
-                inpValue = d(e(inpValue.group(1))) if inpValue else ""
+                # The regex "(?i)value=[\'"](.*?)[\'"]" matches the value attribute of the input tag.
+                # It looks for the string "value=" followed by an optional single or double quote,
+                # then captures the value inside the quotes.
+
+                inpName = decodeString(encodeString(inpName.group(1)))
+                inpType = (
+                    decodeString(encodeString(inpType.group(1))) if inpType else ""
+                )
+                inpValue = (
+                    decodeString(encodeString(inpValue.group(1))) if inpValue else ""
+                )
+
                 if inpType.lower() == "submit" and inpValue == "":
                     inpValue = "Submit Query"
+
                 inpDict = {"name": inpName, "type": inpType, "value": inpValue}
                 forms[num]["inputs"].append(inpDict)
+
         num += 1
+
     return forms
 
 
@@ -496,9 +561,11 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl, threshold
         seedUrl (str): The starting URL for crawling.
         config (dict): Configuration settings for the crawler.
         proxy (str): Proxy settings for making requests.
+        processed_xss_photon_crawl (list): List of processed URLs for XSS vulnerability testing.
+        threshold (float, optional): Similarity threshold for skipping already processed URLs. Defaults to 0.9.
 
     Returns:
-        list: A list containing the found forms and processed URLs.
+        list: A list containing the found forms, checked DOMs, and the seed URL.
     """
 
     forms = []  # web forms
@@ -510,10 +577,10 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl, threshold
     checkedDOMs = []
 
     def recursive_crawl(target):
-        """_summary_
+        """Recursively crawls a target URL to find forms and links.
 
         Args:
-            target (_type_): _description_
+            target (str): The target URL to crawl.
         """
         with lock_processed:
             processed.add(target)
@@ -536,6 +603,7 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl, threshold
         headers = {
             "User-Agent": random.choice(USER_AGENTS),
             "X-HackerOne-Research": "elniak",
+            "Referer": "127.0.0.1",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
             "Accept-Encoding": "gzip,deflate",
@@ -597,7 +665,9 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl, threshold
         retire_js(url, response, config, proxies)
 
         if not config["skip_dom"]:
+            # Extract the highlighted DOM objects from the response
             highlighted = dom(response)
+            # Clean up the highlighted DOM objects by removing line numbers
             clean_highlighted = "".join(
                 [re.sub(r"^\d+\s+", "", line) for line in highlighted]
             )
@@ -621,9 +691,13 @@ def photon_crawler(seedUrl, config, proxy, processed_xss_photon_crawl, threshold
                             file.write(line + "\n")
                         file.write("\n")
 
-        forms.append(zetanize(response))
+        forms.append(html_forms_extractor(response))
 
         matches = re.findall(r'<[aA].*href=["\']{0,1}(.*?)["\']', response)
+        # Regex: <[aA].*href=["\']{0,1}(.*?)["\']
+        # Description: Matches HTML anchor tags with href attribute and captures the URL inside the attribute.
+        # Matches: <a href="http://example.com">, <A HREF='https://example.com'>
+        # Does not match: <a class="link">, <a href="#section">
         for link in matches:
             # iterate over the matches
             # remove everything after a "#" to deal with in-page anchors
@@ -877,6 +951,7 @@ def checker(config, proxy, url, params, GET, payload, positions, encoding):
     headers = {
         "User-Agent": random.choice(USER_AGENTS),
         "X-HackerOne-Research": "elniak",
+        "Referer": "127.0.0.1",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip,deflate",
@@ -885,11 +960,17 @@ def checker(config, proxy, url, params, GET, payload, positions, encoding):
         "DNT": "1",
         "Upgrade-Insecure-Requests": "1",
     }
+    payload_inter = replace_value(params, xsschecker, checkString, copy.deepcopy)
+    cprint(
+        f"Checking efficiency of payload {payload_inter} with proxy {proxies} towards {url} ...",
+        "yellow",
+        file=sys.stderr,
+    )
     response = start_request(
         proxies=proxies,
         config=config,
         base_url=url,
-        params=replace_value(params, xsschecker, checkString, copy.deepcopy),
+        params=payload_inter,
         headers=headers,
         GET=GET,
     )
@@ -906,7 +987,7 @@ def checker(config, proxy, url, params, GET, payload, positions, encoding):
             reflectedPositions.append(match.start())
     except Exception as e:
         cprint(
-            "An error occurred while processing the st4r7s, response - {e}",
+            f"An error occurred while processing the st4r7s, response - {e} for url {url} with payload {payload_inter} ...",
             color="red",
             file=sys.stderr,
         )
@@ -1139,6 +1220,9 @@ def generator(occurences, response):
     Finally, the function returns the 'vectors' dictionary containing the generated XSS payloads.
     """
     scripts = js_extractor(response)
+    cprint(
+        f"Extracted {len(scripts)} JavaScript code snippets from the response ...",
+    )
     index = 0
     vectors = {
         11: set(),
@@ -1153,8 +1237,14 @@ def generator(occurences, response):
         2: set(),
         1: set(),
     }
+    cprint(
+        f"Generating XSS payloads for {len(occurences)} occurrences in the response ...",
+    )
     for i in occurences:
         context = occurences[i]["context"]
+        cprint(
+            f"Processing occurrence {index + 1} of type {context} ...",
+        )
         if context == "html":
             lessBracketEfficiency = occurences[i]["score"]["<"]
             greatBracketEfficiency = occurences[i]["score"][">"]
@@ -1379,7 +1469,17 @@ def generator(occurences, response):
 
 
 def attacker_crawler(
-    scheme, host, main_url, form, blindPayloads, encoding, config, proxy
+    scheme,
+    host,
+    main_url,
+    form,
+    blindPayloads,
+    dcpPayloads,
+    httpPayloads,
+    domPayloads,
+    encoding,
+    config,
+    proxy,
 ):
     """Attacks a web application by crawling and testing XSS vulnerabilities.
 
@@ -1394,7 +1494,7 @@ def attacker_crawler(
         proxy (str): The proxy server to use for the attack.
     """
     if form:
-        cprint(f"Attacking forms: {form}", "green", file=sys.stderr)
+        cprint(f"Attacking forms: {form} for host {host}", "green", file=sys.stderr)
         for each in form.values():
             url = each["action"]
             if url:
@@ -1406,20 +1506,24 @@ def attacker_crawler(
                     url = scheme + "://" + host + url
                 elif re.match(r"\w", url[0]):
                     url = scheme + "://" + host + "/" + url
+
+                valid_url = validators.url(url)
+                if not valid_url:
+                    cprint(
+                        f"Invalid URL: {url} for host {host}", "red", file=sys.stderr
+                    )
+                    continue
+
                 if url not in checkedForms:
                     checkedForms[url] = []
                 method = each["method"]
-                GET = True if method == "get" else False
+                is_get_request = True if method == "get" else False
                 inputs = each["inputs"]
                 paramData = {}
                 for one in inputs:
                     paramData[one["name"]] = one["value"]
                     for paramName in paramData.keys():
                         if paramName not in checkedForms[url]:
-                            checkedForms[url].append(paramName)
-                            paramsCopy = copy.deepcopy(paramData)
-                            paramsCopy[paramName] = xsschecker
-
                             is_waffed = waf_detector(proxy, url, config)
                             if is_waffed:
                                 cprint(
@@ -1437,6 +1541,7 @@ def attacker_crawler(
                             headers = {
                                 "User-Agent": random.choice(USER_AGENTS),
                                 "X-HackerOne-Research": "elniak",
+                                "Referer": "127.0.0.1",
                                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                                 "Accept-Language": "en-US,en;q=0.5",
                                 "Accept-Encoding": "gzip,deflate",
@@ -1447,8 +1552,12 @@ def attacker_crawler(
                             }
                             # TODO add session
                             proxies = prepare_proxies(proxy, config)
+                            checkedForms[url].append(paramName)
+                            paramsCopy = copy.deepcopy(paramData)
+                            paramsCopy[paramName] = xsschecker
+
                             cprint(
-                                f"Testing attack for {'GET' if GET else 'POST'} - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
+                                f"Testing attack for {'GET' if is_get_request else 'POST'} - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
                                 "yellow",
                                 file=sys.stderr,
                             )
@@ -1460,7 +1569,7 @@ def attacker_crawler(
                                 base_url=url,
                                 params=paramsCopy,
                                 headers=headers,
-                                GET=GET,
+                                GET=is_get_request,
                             )
 
                             occurences = html_xss_parser(response, encoding)
@@ -1487,7 +1596,7 @@ def attacker_crawler(
                                 proxy,
                                 url,
                                 paramsCopy,
-                                GET,
+                                is_get_request,
                                 occurences,
                                 encoding,
                             )
@@ -1500,6 +1609,21 @@ def attacker_crawler(
                             cprint("Generating payloads:", "green", file=sys.stderr)
 
                             vectors = generator(occurences, response.text)
+                            total = 0
+                            for v in vectors.values():
+                                total += len(v)
+                            if total == 0:
+                                cprint(
+                                    f"No vector generated for {url}",
+                                    "red",
+                                    file=sys.stderr,
+                                )
+                                continue
+                            cprint(
+                                f"Generating payloads: {total} for {url}",
+                                "green",
+                                file=sys.stderr,
+                            )
                             with lock_processed:
                                 write_xss_vectors(
                                     vectors,
@@ -1508,40 +1632,131 @@ def attacker_crawler(
                                     ),
                                 )
                             if vectors:
+                                progress = 0
                                 for confidence, vects in vectors.items():
-                                    try:
-                                        payload = list(vects)[0]
-                                        cprint(
-                                            "[Potential Vulnerable Webpage] - %s%s%s"
-                                            % (green, url, end),
-                                            color="green",
-                                            file=sys.stderr,
-                                        )
-                                        cprint(
-                                            "\tVector for %s%s%s: %s"
-                                            % (green, paramName, end, payload),
-                                            color="green",
-                                            file=sys.stderr,
-                                        )
-                                        cprint(
-                                            "\tConfidence: %s%s%s"
-                                            % (green, confidence, end),
-                                            color="green",
-                                            file=sys.stderr,
-                                        )
-                                        # Only test most confident payloads ?
-                                        # TODO perform the attacks
-                                        break
-                                    except IndexError:
-                                        pass
-                            if config["blind_xss"] and blindPayloads:
-                                for blindPayload in blindPayloads:
-                                    paramsCopy[paramName] = blindPayload
+                                    for vect in vects:
+                                        vect = vect.replace("/", "%2F")
+                                    progress += 1
+                                    loggerVector = vect
                                     cprint(
-                                        f"Testing blind XSS attack for {'GET' if GET else 'POST'} with blind payload - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
+                                        f"Progress {progress}/{total} for url {url}",
+                                        "green",
+                                        file=sys.stderr,
+                                    )
+                                    if not is_get_request:
+                                        vect = unquote(vect)
+                                    efficiencies = checker(
+                                        config,
+                                        proxy,
+                                        url,
+                                        paramsCopy,
+                                        is_get_request,
+                                        vect,
+                                        positions,
+                                        encoding,
+                                    )
+
+                                    if not efficiencies:
+                                        for i in range(len(occurences)):
+                                            efficiencies.append(0)
+                                    bestEfficiency = max(efficiencies)
+                                    if bestEfficiency == 100 or (
+                                        vect[0] == "\\" and bestEfficiency >= 95
+                                    ):
+                                        cprint(
+                                            "Payload: %s" % loggerVector,
+                                            "red",
+                                            file=sys.stderr,
+                                        )
+                                        cprint(
+                                            "Efficiency: %i" % bestEfficiency,
+                                            "yellow",
+                                            file=sys.stderr,
+                                        )
+                                        cprint(
+                                            "Confidence: %i" % confidence,
+                                            "yellow",
+                                            file=sys.stderr,
+                                        )
+                                    elif bestEfficiency > minEfficiency:
+                                        cprint(
+                                            "Payload: %s" % loggerVector,
+                                            "red",
+                                            file=sys.stderr,
+                                        )
+                                        cprint(
+                                            "Efficiency: %i" % bestEfficiency,
+                                            "yellow",
+                                            file=sys.stderr,
+                                        )
+                                        cprint(
+                                            "Confidence: %i" % confidence,
+                                            "yellow",
+                                            file=sys.stderr,
+                                        )
+                                    # try:
+                                    #     payload = list(vects)[0]
+                                    #     cprint(
+                                    #         "[Potential Vulnerable Webpage] - %s%s%s"
+                                    #         % (green, url, end),
+                                    #         color="green",
+                                    #         file=sys.stderr,
+                                    #     )
+                                    #     cprint(
+                                    #         "\tVector for %s%s%s: %s"
+                                    #         % (green, paramName, end, payload),
+                                    #         color="green",
+                                    #         file=sys.stderr,
+                                    #     )
+                                    #     cprint(
+                                    #         "\tConfidence: %s%s%s"
+                                    #         % (green, confidence, end),
+                                    #         color="green",
+                                    #         file=sys.stderr,
+                                    #     )
+                                    #     # Only test most confident payloads ?
+                                    #     # TODO perform the attacks
+                                    #     break
+                                    # except IndexError:
+                                    #     pass
+                            if config["blind_xss"] and blindPayloads:
+                                # TODO add more from xsser
+                                # TODO
+                                blindPayloads = (
+                                    blindPayloads
+                                    + dcpPayloads
+                                    + httpPayloads
+                                    + domPayloads
+                                )
+                                for blindPayload in blindPayloads:
+                                    blindPayload = blindPayload.strip()
+                                    paramsCopy[paramName] = blindPayload
+                                    if (
+                                        "PAYLOAD" in blindPayload
+                                        or "VECTOR" in blindPayload
+                                    ):
+                                        blindPayload = blindPayload.replace(
+                                            "PAYLOAD", "ElNiak"
+                                        )
+                                        blindPayload = blindPayload.replace(
+                                            "VECTOR", "ElNiak"
+                                        )
+
+                                    blindPayload = str(blindPayload)
+
+                                    if "[B64]" in blindPayload:  # [DCP Injection]
+                                        dcp_payload = blindPayload.split("[B64]")[1]
+                                        dcp_preload = blindPayload.split("[B64]")[0]
+                                        dcp_payload = base64.b64encode(dcp_payload)
+                                        blindPayload = dcp_preload + dcp_payload
+
+                                    cprint(
+                                        f"Testing blind XSS attack for {'GET' if is_get_request else 'POST'} with blind payload - Session (n° 0): {url} \n\t - parameters {paramsCopy} \n\t - headers {headers} \n\t - xss - with proxy {proxies} ...",
                                         "yellow",
                                         file=sys.stderr,
                                     )
+                                    if " " in url:  # parse blank spaces
+                                        url = url.replace(" ", "+")
                                     proxies = prepare_proxies(proxy, config)
                                     response = start_request(
                                         proxies=proxies,
@@ -1549,18 +1764,48 @@ def attacker_crawler(
                                         base_url=url,
                                         params=paramsCopy,
                                         headers=headers,
-                                        GET=GET,
+                                        GET=is_get_request,
                                     )
+                                    # TODO use selenium and take screenshot
                                     if response:
-                                        cprint(
-                                            "Response blind XSS: %s" % response.text,
-                                            "green",
-                                            file=sys.stderr,
-                                        )
+                                        if response.status_code in [200, 302, 301, 401]:
+                                            cprint(
+                                                f"[AIMED] Response blind XSS for url: {url} with payload: {blindPayload} and params {paramsCopy} - {response}",
+                                                "yellow",
+                                                file=sys.stderr,
+                                            )
+                                            if response.status_code == 301:
+                                                new_url = response.header["Location"]
+                                                cprint(
+                                                    f"[REDIRECT] Redirecting to {new_url} (TODO)",
+                                                    "yellow",
+                                                    file=sys.stderr,
+                                                )
+                                            if response.status_code == 302:
+                                                new_url = url + "/"
+                                                cprint(
+                                                    f"[REDIRECT] Redirecting to {new_url} (TODO)",
+                                                    "yellow",
+                                                    file=sys.stderr,
+                                                )
+
+                                            if "ElNiak" in response.text:
+                                                cprint(
+                                                    f"[SUCCESS] Response blind XSS for url {url} with payload {blindPayload} and params {paramsCopy} - {response}",
+                                                    "green",
+                                                    file=sys.stderr,
+                                                )
+                                        else:
+                                            cprint(
+                                                f"[FAIL] Response blind XSS for url {url} with payload {blindPayload} and params {paramsCopy} - {response}",
+                                                "red",
+                                                file=sys.stderr,
+                                            )
+
                                     else:
                                         cprint(
-                                            "Response blind XSS: %s" % response,
-                                            "green",
+                                            f"[FAIL] Response blind XSS for url {url} with payload {blindPayload} and params {paramsCopy} - {response}",
+                                            "red",
                                             file=sys.stderr,
                                         )
 

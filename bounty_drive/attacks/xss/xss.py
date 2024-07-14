@@ -59,6 +59,7 @@ def test_xss_target(url, proxy, config, dork_id, link_id, attack_id):
         "Accept-Encoding": "gzip,deflate",
         "Connection": "close",
         "cache-control": "max-age=0",
+        "Referer": "127.0.0.1",
         "DNT": "1",
         "Upgrade-Insecure-Requests": "1",
     }
@@ -195,22 +196,44 @@ def launch_xss_attack(config):
                 scheme = urlparse(website).scheme
                 host = urlparse(website).netloc
                 main_url = scheme + "://" + host
-                print(f"Main URL: {main_url}")
-                print(f"Forms: {forms}")
-                print(f"DOM URLS: {domUrls}")
-                print(f"zip(forms, domUrls): {list(zip(forms, domUrls))}")
-                for form, domURL in list(zip(forms, domUrls)):
-                    search_tasks_with_proxy.append(
-                        {
-                            "main_url": main_url,
-                            "form": form,
-                            "scheme": scheme,
-                            "host": host,
-                            "domURLs": domURL,
-                            "proxy": proxy,
-                        }
+                if main_url != "://":
+                    cprint(
+                        f"Main URL: {main_url}",
+                        color="yellow",
+                        file=sys.stderr,
                     )
+                    cprint(
+                        f"Forms: {forms}",
+                        color="yellow",
+                        file=sys.stderr,
+                    )
+                    cprint(
+                        f"DOM URLS: {domUrls}",
+                        color="yellow",
+                        file=sys.stderr,
+                    )
+                    cprint(
+                        f"zip(forms, domUrls): {list(zip(forms, domUrls))}",
+                        color="yellow",
+                        file=sys.stderr,
+                    )
+                    for form, domURL in list(zip(forms, domUrls)):
+                        search_tasks_with_proxy.append(
+                            {
+                                "main_url": main_url,
+                                "form": form,
+                                "scheme": scheme,
+                                "host": host,
+                                "domURLs": domURL,
+                                "proxy": proxy,
+                            }
+                        )
 
+            search_tasks_with_proxy = [
+                i
+                for n, i in enumerate(search_tasks_with_proxy)
+                if i not in search_tasks_with_proxy[n + 1 :]
+            ]
             cprint(
                 f"Total XSS Targets: {len(search_tasks_with_proxy)}",
                 color="yellow",
@@ -224,6 +247,20 @@ def launch_xss_attack(config):
                 with open("attacks/xss/payloads/blind-xss-payload-list.txt", "r") as f:
                     blindPayloads = f.readlines()
 
+                domPayloads = []
+                with open("attacks/xss/payloads/dom-xss-payload-list.txt", "r") as f:
+                    domPayloads = f.readlines()
+
+                dcpPayloads = []
+                with open("attacks/xss/payloads/dcp-xss-payload-list.txt", "r") as f:
+                    dcpPayloads = f.readlines()
+
+                httpPayloads = []
+                with open(
+                    "attacks/xss/payloads/http-header-xss-payload-list.txt", "r"
+                ) as f:
+                    httpPayloads = f.readlines()
+
                 encoding = base64_encoder if config["encode_xss"] else False
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=number_of_worker
@@ -236,6 +273,9 @@ def launch_xss_attack(config):
                             task["main_url"],
                             task["form"],
                             blindPayloads,
+                            dcpPayloads,
+                            httpPayloads,
+                            domPayloads,
                             encoding,
                             config,
                             task["proxy"],

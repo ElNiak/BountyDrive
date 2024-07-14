@@ -18,3 +18,4 @@ tbb
 types-tqdm
 types-psutil
 types-beautifulsoup4
+validators

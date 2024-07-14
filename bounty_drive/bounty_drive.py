@@ -1,4 +1,5 @@
 # /usr/bin/python3
+import logging
 import sys
 
 # TO get stacktrace in case of segfault
@@ -45,13 +46,26 @@ from utils.banner import load_animation
 
 
 import configparser
+import json
 
 os.system("clear")
-csv.field_size_limit(100000000)
 
 #########################################################################################
 # Main function
 #########################################################################################
+
+
+def setup_environment(config):
+    """Set up the environment, proxies, and VPN."""
+    try:
+        logging.info("Performing search engine and GitHub dorking attacks.")
+        if config["use_proxy"]:
+            setup_proxies(config=config)
+        if config["use_vpn"]:
+            setup_vpn(config=config)
+    except Exception as e:
+        logging.error(f"Failed to set up environment: {e}")
+        sys.exit(1)
 
 
 def read_config(file_path):
@@ -161,16 +175,12 @@ def get_user_input(config_file="configs/config.ini"):
     setup_experiment_folder(config, categories)
 
     cprint(
-        f"-Extension: {config['extension']}\n-Total Output: {config['total_output']}\n-Page No: {config['page_no']}\n-Do Google Dorking: {config['do_dorking_google']}\n-Do Github Dorking {config['do_dorking_github']}\n-Do XSS: {config['do_xss']}\n-Do SQLi: {config['do_sqli']},\n -Domain: {config['subdomain']}\n-Use Proxy: {config['use_proxy']}",
+        f"-Extension: {config['extension']}\n-Total Output: {config['total_output']}\n-Page No: {config['page_no']}\n-Do Google Dorking: {config['do_dorking_google']}\n-Do Github Dorking {config['do_dorking_github']}\n-Do XSS: {config['do_xss']}\n-Do SQLi: {config['do_sqli']}\n-Domain: {config['subdomain']}\n-Use Proxy: {config['use_proxy']}",
         "blue",
         file=sys.stderr,
     )
 
-    if config["use_proxy"]:
-        setup_proxies(config)
-
-    if config["use_vpn"]:
-        setup_vpn(config)
+    setup_environment(config)
 
     last_dork_id, last_link_id, last_attack_id = get_last_processed_ids(config)
 
@@ -194,7 +204,7 @@ def get_user_input(config_file="configs/config.ini"):
         config["total_output"] = current_total_output
         search_tasks_with_proxy = []
 
-        number_of_worker = 30  # min(len(proxies)*2, 30)
+        number_of_worker = max(len(proxies) * 2, 30)
         cprint(f"Number of workers: {number_of_worker}", "blue", file=sys.stderr)
 
         with open(config["target_file"], "r") as file:
@@ -203,12 +213,11 @@ def get_user_input(config_file="configs/config.ini"):
                 for domain in subdomain_list:
                     processed = False
                     for category in categories:
-                        with open(config["dorking_csv"], mode="r", newline="") as file:
-                            reader = csv.DictReader(file)
+                        with open(config["dorking_json"], mode="r", newline="") as file:
+                            reader = json.load(file)
                             for row in reader:
                                 if domain in row["dork"]:
                                     processed = True
-
                         if not processed:
                             proxy = next(proxy_cycle)
                             search_tasks_with_proxy.append(
@@ -274,20 +283,20 @@ def setup_experiment_folder(config, categories):
     if not os.path.exists(folder_name):
         cprint(f"Creating folder {folder_name}", "blue", file=sys.stderr)
         os.makedirs(folder_name)
-    setup_csv(config, categories, folder_name)
+    setup_json(config, categories, folder_name)
 
 
-def setup_csv(config, categories, folder_name):
-    """Set up the CSV file for storing experiment results.
+def setup_json(config, categories, folder_name):
+    """Set up the JSON file for storing experiment results.
 
-    This function creates the necessary CSV file and writes the headers based on the provided configuration.
+    This function creates the necessary JSON file and writes the headers based on the provided configuration.
 
     Args:
         config (dict): A dictionary containing the configuration settings.
-        categories (list): A list of categories to be included in the CSV headers.
+        categories (list): A list of categories to be included in the JSON headers.
 
     """
-    csv_headers = [
+    json_headers = [
         "dork_id",
         "link_id",
         "attack_id",
@@ -297,13 +306,13 @@ def setup_csv(config, categories, folder_name):
         "success",
         "payload",
     ]
-    config["dorking_csv"] = os.path.join(
-        folder_name, folder_name.split("/")[-1] + "_dorking.csv"
+    config["dorking_json"] = os.path.join(
+        folder_name, folder_name.split("/")[-1] + "_dorking.json"
     )
     if config["do_dorking_github"]:
-        csv_headers.append("github_success")
+        json_headers.append("github_success")
     if config["do_sqli"]:
-        sqli_csv_headers = [
+        sqli_json_headers = [
             "dork_id",
             "link_id",
             "attack_id",
@@ -312,17 +321,16 @@ def setup_csv(config, categories, folder_name):
             "success",
             "payload",
         ]
-        sqli_csv = os.path.join(folder_name, folder_name.split("/")[-1] + "_sqli.csv")
-        config["sqli_csv"] = sqli_csv
-        if not os.path.exists(sqli_csv) or os.path.getsize(sqli_csv) == 0:
-            with open(sqli_csv, mode="a", newline="") as file:
-                writer = csv.writer(file)
-                writer.writerow(sqli_csv_headers)
+        sqli_json = os.path.join(folder_name, folder_name.split("/")[-1] + "_sqli.json")
+        config["sqli_json"] = sqli_json
+        if not os.path.exists(sqli_json) or os.path.getsize(sqli_json) == 0:
+            with open(sqli_json, mode="a") as file:
+                json.dump([], file)
 
-        csv_headers.append("sqli_success")
+        json_headers.append("sqli_success")
         categories.append("sqli")
     if config["do_xss"]:
-        xss_csv_headers = [
+        xss_json_headers = [
             "dork_id",
             "link_id",
             "attack_id",
@@ -336,39 +344,38 @@ def setup_csv(config, categories, folder_name):
             "is_unknown",
             "already_attacked",
         ]
-        xss_csv = os.path.join(folder_name, folder_name.split("/")[-1] + "_xss.csv")
-        config["xss_csv"] = xss_csv
-        if not os.path.exists(xss_csv) or os.path.getsize(xss_csv) == 0:
-            with open(xss_csv, mode="a", newline="") as file:
-                writer = csv.writer(file)
-                writer.writerow(xss_csv_headers)
+        xss_json = os.path.join(folder_name, folder_name.split("/")[-1] + "_xss.json")
+        config["xss_json"] = xss_json
+        if not os.path.exists(xss_json) or os.path.getsize(xss_json) == 0:
+            with open(xss_json, mode="a") as file:
+                json.dump([], file)
 
-        csv_headers.append("xss_success")
+        json_headers.append("xss_success")
         categories.append("xss")
     if config["do_crawl"]:
-        crawl_csv_headers = [
+        crawl_json_headers = [
             "crawl_id",
             "seedUrl",
             "success",
             "doms",
             "forms",
         ]
-        crawl_csv = os.path.join(folder_name, folder_name.split("/")[-1] + "_crawl.csv")
-        config["crawl_csv"] = crawl_csv
-        if not os.path.exists(crawl_csv) or os.path.getsize(crawl_csv) == 0:
-            with open(crawl_csv, mode="a", newline="") as file:
-                writer = csv.writer(file)
-                writer.writerow(crawl_csv_headers)
+        crawl_json = os.path.join(
+            folder_name, folder_name.split("/")[-1] + "_crawl.json"
+        )
+        config["crawl_json"] = crawl_json
+        if not os.path.exists(crawl_json) or os.path.getsize(crawl_json) == 0:
+            with open(crawl_json, mode="a") as file:
+                json.dump([], file)
 
-        csv_headers.append("crawl_success")
+        json_headers.append("crawl_success")
         categories.append("crawl")
     if (
-        not os.path.exists(config["dorking_csv"])
-        or os.path.getsize(config["dorking_csv"]) == 0
+        not os.path.exists(config["dorking_json"])
+        or os.path.getsize(config["dorking_json"]) == 0
     ):
-        with open(config["dorking_csv"], mode="a", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerow(csv_headers)
+        with open(config["dorking_json"], mode="a") as file:
+            json.dump([], file)
 
 
 if __name__ == "__main__":

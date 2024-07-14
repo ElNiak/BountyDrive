@@ -52,6 +52,7 @@ def waf_detector(proxies, url, config, mode="xss"):
     }
     proxies = prepare_proxies(proxies, config)
     # Opens the noise injected payload
+    cprint(f"Waf Detector: Sending request to {url}", "blue", file=sys.stderr)
     response = start_request(
         proxies=proxies,
         base_url=url,

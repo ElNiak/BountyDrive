@@ -174,3 +174,4 @@ Also watch module for more specfic TODOs:
 | /signaler-contenu-illicite.html* /desabo/ /optins/preferences/ /php/ /php/ajax/* 
 | /feuilletables/ /iframe/ /newsletters/ 
 |_/jeu-nouveau-rustica-bien-etre/ /concours/ /popunder/ /popup/
+* https://github.com/dwisiswant0/findom-xss/blob/master/findom-xss.sh

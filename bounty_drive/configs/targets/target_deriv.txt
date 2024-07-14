@@ -1,0 +1,11 @@
+secure-dfadmin.deriv.com
+cashier.deriv.com
+*.deriv.cloud
+*.derivws.com
+smarttrader.deriv.com
+api.deriv.com
+*.deriv.com
+derivws.com
+app.deriv.com
+oauth.deriv.com
+*.binary.com

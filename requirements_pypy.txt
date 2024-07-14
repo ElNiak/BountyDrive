@@ -18,3 +18,4 @@ psutil
 types-beautifulsoup4
 random_user_agent
 types-psutil
+validators

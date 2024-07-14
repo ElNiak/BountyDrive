@@ -335,7 +335,7 @@ def start_request(
         elif is_json:
             response = requester.post(
                 base_url,
-                json=data[0],
+                json=data[0] if data else {},
                 headers=headers,
                 timeout=config["request_delay"],
                 verify=secured,
@@ -345,7 +345,7 @@ def start_request(
         else:
             response = requester.post(
                 base_url,
-                data=data[0],
+                data=data[0] if data else {},
                 headers=headers,
                 timeout=config["request_delay"],
                 verify=secured,
@@ -363,6 +363,11 @@ def start_request(
             if response.status_code == 429:
                 # delay = random.uniform(LONG_DELAY-5, LONG_DELAY+5)
                 # time.sleep(delay)  # Wait before retrying
+                cprint(
+                    f"Too many requests - Retry after {response.headers.get('Retry-After', 60)} secs ...",
+                    "red",
+                    file=sys.stderr,
+                )
                 retry_after = int(response.headers.get("Retry-After", 60))
                 cprint(
                     f"Retry after {retry_after} secs ...",
@@ -399,6 +404,26 @@ def start_request(
                         file=sys.stderr,
                     )
                     time.sleep(config["waf_delay"])
+            elif response.status_code == 400:
+                cprint(
+                    "400 Bad Request - Trying to bypass ...",
+                    "yellow",
+                    file=sys.stderr,
+                )
+                delay = random.uniform(
+                    config["current_delay"] - 5, config["current_delay"] + 5
+                )
+                time.sleep(delay)
+                response = start_request(
+                    proxies=proxies,
+                    base_url=base_url,
+                    params=params,
+                    headers=headers,
+                    secured=secured,
+                    GET=not GET,  # Switch from GET to POST or vice versa
+                    config=config,
+                    bypassed_403=True,
+                )
             else:
                 cprint(
                     f"Error in {'GET' if GET else 'POST'} request {base_url} with params - {params}/data - {data} ... - status code = {response.status_code}",
