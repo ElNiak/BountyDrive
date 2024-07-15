@@ -26,6 +26,7 @@ LOCKS = {
 
 def write_xss_vectors(vectors, filename):
     with LOCKS["xss"]:
+        vectors = list(set(vectors))
         if os.path.exists(filename):
             with open(filename, "r+") as f:
                 json.dump(vectors, f)
